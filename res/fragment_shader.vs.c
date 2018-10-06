@@ -24,8 +24,12 @@ void main() {
 		FragColor = mix(a, b, mix_val);
 
 		if (paint.x + paint.y + paint.z > 0.1){
-			if (FragColor.r + FragColor.g + FragColor.b > 0.1 && FragColor.a > 0.8){
-				FragColor = mix(FragColor, vec4(paint,1), 0.5);
+			if (FragColor.r + FragColor.g + FragColor.b > 0.1){
+				if (FragColor.a < 0.8)
+					FragColor = mix(FragColor, vec4(paint,1), 0.5);
+				else
+					FragColor = vec4(1,1,1,1);
+					// FragColor = mix(FragColor, vec4(paint,1), 0.5)*vec4(1.2, 1.2, 1.2, 1);
 			}
 		}
 
