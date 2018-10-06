@@ -31,6 +31,100 @@ float c_b = 0/512.0f; //c_btom
 float c_l = 0/1024.0f; //c_l
 float c_r = 512/1024.0f; //c_r
 
+struct frame {
+	float x, y, z;
+	float width, height;
+};
+
+unsigned int getBuildingVAO(struct frame building){
+	//4 sides
+	//top = 4 points (each w/ texture vertex);
+	//base = 4 points (each w/ texture vertex);
+	//total_space = 4 sides * 8 points = 32 vertices
+	//vertex = 3xyz + 2Tex_XY
+	int cVertices = 32, cFloats = 5;
+
+	//Data values for the building
+	float *vertices = malloc(sizeof(float)*cVertices*cFloats);
+	unsigned int vertexWriteIndex = 0;
+
+	//The y-values for each of the rows drawn of the building
+	float topPartHeight = building.width/2; //maintain aspect ratio of textures
+	float top = building.y+building.height;
+	float heights[] = {top, top-topPartHeight, top-topPartHeight, building.y};
+
+	//For each side of the building, we draw left-to-right top-to-bottom
+	//since the top of the building occupies the left half of the src image,
+	//the left/right pairs of the first two points are 0->0.5
+		//				top {   L,   R, L,   R}	  bottom{ L,   R,   L,   R};
+	float texXcoords[] = {0, 0.5, 0, 0.5,					0.5, 1.0, 0.5, 1.0};
+		//For the top part(i=0,1), the entire height of the texture fits the side
+		//for the bottom, we repeat the bottom a bunch to adjust for height variability
+	float texYcoords[] = {0,1,0,(building.height-topPartHeight)/topPartHeight};
+
+	//Combined, these makeup the four corners of the building
+	float xCoords[] = {building.x, building.x+building.width};
+	float zCoords[] = {building.z, building.z+building.width};
+	//By going from index 0, 1, 2, 3, one travels CCW around the building
+	int orderXindices[] = {0, 0, 1, 1};
+	int orderZindices[] = {0, 1, 1, 0};
+
+	int leftEdgeIndex;
+	for (leftEdgeIndex=0; leftEdgeIndex<4; leftEdgeIndex++){
+			//Grab the correct x,z coordinates for the left/right edge of the side
+			float leftX  = xCoords[orderXindices[leftEdgeIndex]];
+			float leftZ  = zCoords[orderZindices[leftEdgeIndex]];
+			float rightX = xCoords[orderXindices[(leftEdgeIndex+1)%4]];
+			float rightZ = zCoords[orderZindices[(leftEdgeIndex+1)%4]];
+
+			//0 = very top, 1 = bottom of top(mid), 2 = top of bottom(mid), 3 = bottom of bottom
+			unsigned int row_index = 0;
+			for (row_index=0; row_index<4; row_index++){
+				//Left point
+				vertices[vertexWriteIndex++] = leftX;
+				vertices[vertexWriteIndex++] = heights[row_index];
+				vertices[vertexWriteIndex++] = leftZ;
+				//Tex_xy
+				vertices[vertexWriteIndex++] = texXcoords[2*row_index];
+				vertices[vertexWriteIndex++] = texYcoords[row_index];
+
+				//Right point
+				vertices[vertexWriteIndex++] = rightX;
+				vertices[vertexWriteIndex++] = heights[row_index];
+				vertices[vertexWriteIndex++] = rightZ;
+				//Tex_xy
+				vertices[vertexWriteIndex++] = texXcoords[2*row_index+1];
+				vertices[vertexWriteIndex++] = texYcoords[row_index];
+
+			}
+	}
+
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+
+	unsigned int VBO;
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+	// unsigned int EBO;
+	// glGenBuffers
+
+	glBufferData(GL_ARRAY_BUFFER, cVertices*cFloats*sizeof(float), vertices, GL_STATIC_DRAW);
+
+	int stride = 5*sizeof(float);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*) (3*sizeof(float)));
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+
+	glBindVertexArray(0);
+
+	return VAO;
+}//getBuildingVAO
+
+
+
 int main(){
 
 	float vertices[] = {
@@ -86,6 +180,7 @@ int main(){
 			-0.5f,  0.5f,  0.5f,  c_l, c_b,
 			-0.5f,  0.5f, -0.5f,  c_l, c_t
 	};
+
 
 	// glfw initialization
 	glfwInit();
@@ -189,6 +284,11 @@ int main(){
 	unsigned int perspectiveLoc = glGetUniformLocation(crateShader->ID, "perspective");
 
 
+	struct frame building = {-20, 0, -20, 10, 50};
+	unsigned int buildingVAO = getBuildingVAO(building);
+	unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
+
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -198,10 +298,6 @@ int main(){
 	//Variables
 	float x = 0, y = 0, z = 0;
 	float theta = 0;
-
-	// struct rot3d {
-	// 	float pitch, roll, yaw;
-	// } cam = {0,0,-0.9};
 
 	double cam_prevx = WIN_WIDTH/2;
 	double cam_prevy = WIN_HEIGHT/2;
@@ -295,15 +391,32 @@ int main(){
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
+		//Bind crate and face textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, crateTexture);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, faceTexture);
 
+		//Bind CrateVAO and draw triangles
 		glBindVertexArray(crateVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 
+		//Bind building texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, buildingTexture);
+
+		//Replace crateLocal with neutral matrix
+		mat4x4_identity(crateLocal);
+		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+
+		//Bind buildingVAO and draw triangles
+		glBindVertexArray(buildingVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 32);
+
+
+		//Unbind VAO
+		glBindVertexArray(0);
 
 		// Bind Crate Shader Program
 		glUseProgram(shader->ID);
