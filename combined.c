@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include <camera.h>
 #include <linmath.h>
 
 #include <stdlib.h>
@@ -198,17 +199,19 @@ int main(){
 	float x = 0, y = 0, z = 0;
 	float theta = 0;
 
-	struct rot3d {
-		float pitch, roll, yaw;
-	} cam = {0,0,-0.9};
+	// struct rot3d {
+	// 	float pitch, roll, yaw;
+	// } cam = {0,0,-0.9};
 
 	double cam_prevx = WIN_WIDTH/2;
 	double cam_prevy = WIN_HEIGHT/2;
 	glfwGetCursorPos(window, &cam_prevx, &cam_prevy);
 	double camx, camy;
 
-	vec3 camPos = {0, 1, 2};
-	vec3 camDir = {0, 0, -1};
+	// vec3 camPos = {0, 1, 2};
+	// vec3 camDir = {0, 0, -1};
+	setPosition(0, 1, 2);
+	setRotation(0, 0, 0);
 
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -238,91 +241,37 @@ int main(){
 		int keyA = glfwGetKey(window, GLFW_KEY_A);
 		int keyS = glfwGetKey(window, GLFW_KEY_S);
 		int keyD = glfwGetKey(window, GLFW_KEY_D);
+		int keyLeftShift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
+		int keySpace = glfwGetKey(window, GLFW_KEY_SPACE);
 
 		//Scale direction vector to appropriate speed
 		double speedForward = 0.08;
 		double speedStrafe = 0.07;
+		double speedRaise = 0.1;		//Positive for up
 
-		//Reverse Direction
-		if (keyS)
-		 	speedForward *= -1;
-		if (keyA)
-			speedStrafe *= -1;
+		if (!(keyW && keyS))
+			if (keyW) moveStraight(speedForward);
+			else if (keyS) moveStraight(-speedForward);
 
-		//Move forward/backward
-		if (keyW || keyS){
-			vec3 direction;
-			vec3_scale(direction, camDir, speedForward);
-			vec3_add(camPos, camPos, direction);
-		}
+		if (!(keyA && keyD))
+			if (keyA) moveStrafe(-speedStrafe);
+			else if (keyD) moveStrafe(speedStrafe);
 
-		if (keyA || keyD){
-			vec3 up = {0, 1, 0};
-			vec3 direction;
-			vec3_mul_cross(direction, camDir, up);
-			vec3_norm(direction, direction);
-			vec3_scale(direction, direction, speedStrafe);
-			vec3_add(camPos, camPos, direction);
-		}
-
-		int keyLeftShift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
-		int keySpace = glfwGetKey(window, GLFW_KEY_SPACE);
-
-		//Positive for up
-		double speedRaise = 0.1;
-		// double speedLower = -speedRaise;
-
-		if (keyLeftShift)
-			speedRaise *= -1;
-
-		if (keyLeftShift || keySpace){
-			vec3 direction = {0, -1, 0};
-			vec3_scale(direction, direction, -speedRaise);
-			vec3_add(camPos, camPos, direction);
-		}
-
+		if (!(keySpace && keyLeftShift))
+			if (keySpace) moveVertical(speedRaise);
+			else if (keyLeftShift) moveVertical(-speedRaise);
 
 
 		double sensitivity = 0.01;
 		glfwGetCursorPos(window, &camx, &camy);
-		cam.yaw += sensitivity*(camx-cam_prevx);
-		cam.pitch -= sensitivity*(camy-cam_prevy);
-
-		float max_angle = 89/90.0 * M_PI/2;
-		if (cam.pitch > max_angle)
-			cam.pitch = max_angle;
-		else if (cam.pitch < -max_angle)
-			cam.pitch = -max_angle;
-		// printf("Delta Mouse: [%.1f , %.2f]\n", camx-cam_prevx, camy-cam_prevy);
+		updateRotation(camx-cam_prevx, camy-cam_prevy);
 
 		//------------- Calculate Matrices --------------------- //
 
 		mat4x4 cameraView, perspective, viewTimesPerspective;
 
-		//Camera view
-		// double camX = 3*sin(glfwGetTime()/3);
-		// double camZ = 3*cos(glfwGetTime()/3);
-
-		mat4x4_identity(cameraView);
-		// vec3 origin = {0, 0, 0   },
-		vec3 up			= {0, 1, 0};
-
-		camDir[0] = cosf(cam.yaw)*cosf(cam.pitch);
-		camDir[1] = sinf(cam.pitch);
-		camDir[2] = sinf(cam.yaw)*cosf(cam.pitch);
-
-		// double lookX = 0, lookY = 1, lookZ = 0;
-		// lookX = camPos[0]+cosf(cam.yaw)*cos(cam.pitch);
-		// lookY = camPos[1]+sinf(cam.pitch);
-		// lookZ = camPos[2]+sinf(cam.yaw)*cos(cam.pitch);
-
-		vec3 origin;
-		vec3_add(origin, camPos, camDir);
-
-		// origin[0] = lookX,
-		// origin[1] = lookY,
-		// origin[2] = lookZ;
-		mat4x4_look_at(cameraView, camPos, origin, up);
+		//Camera View
+		cameraView = Camera.viewMatrix;
 
 		//Perspective
 		mat4x4_perspective(perspective, M_PI/3, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 100.0f);
