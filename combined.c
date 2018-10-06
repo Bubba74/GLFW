@@ -208,10 +208,9 @@ int main(){
 	glfwGetCursorPos(window, &cam_prevx, &cam_prevy);
 	double camx, camy;
 
-	// vec3 camPos = {0, 1, 2};
-	// vec3 camDir = {0, 0, -1};
-	setPosition3d(0, 1, 2);
-	setRotation3d(0, 0, 0);
+	struct Camera *cam = cameraGetNew();
+	cameraPosition3d(cam, 0, 1, 2);
+	cameraRotate3d(cam, -0.2, 0, -1.5);
 
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -250,24 +249,23 @@ int main(){
 		double speedRaise = 0.1;		//Positive for up
 
 		if (!(keyW && keyS))
-			if (keyW) moveStraight(speedForward);
-			else if (keyS) moveStraight(-speedForward);
+			if (keyW) cameraForward(cam, speedForward);
+			else if (keyS) cameraForward(cam, -speedForward);
 
 		if (!(keyA && keyD))
-			if (keyA) moveStrafe(-speedStrafe);
-			else if (keyD) moveStrafe(speedStrafe);
+			if (keyA) cameraStrafe(cam, -speedStrafe);
+			else if (keyD) cameraStrafe(cam, speedStrafe);
 
 		if (!(keySpace && keyLeftShift))
-			if (keySpace) moveVertical(speedRaise);
-			else if (keyLeftShift) moveVertical(-speedRaise);
+			if (keySpace) cameraUp(cam, speedRaise);
+			else if (keyLeftShift) cameraUp(cam, -speedRaise);
 
 
 		glfwGetCursorPos(window, &camx, &camy);
-		updateRotation(camx-cam_prevx, camy-cam_prevy);
+		cameraRotateByMouse(cam, camx-cam_prevx, camy-cam_prevy);
 
-		int g=0;
-		for (; g<1000000; g++)
-		generateViewMatrix();
+		cameraGenerateViewMatrix(cam);
+
 		//------------- Calculate Matrices --------------------- //
 
 		mat4x4 perspective, viewTimesPerspective;
@@ -277,7 +275,7 @@ int main(){
 		mat4x4_perspective(perspective, M_PI/3, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 100.0f);
 
 		//Product
-		mat4x4_mul(viewTimesPerspective, perspective, Camera.viewMatrix);
+		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
 
 
 		// ------------------- Render Crate -------------------- //
@@ -294,7 +292,7 @@ int main(){
 		//Send matrix transformations to shader program
 		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)Camera.viewMatrix);
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
 		glActiveTexture(GL_TEXTURE0);
