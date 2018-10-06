@@ -5,7 +5,7 @@
 #include <linmath.h>
 #include <stdlib.h>
 
-#define CameraSensitivity 0.01
+#define CameraSensitivity 0.005
 
 struct Camera {
   int updateViewMatrix;
