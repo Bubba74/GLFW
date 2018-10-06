@@ -265,6 +265,8 @@ int main(){
 		glfwGetCursorPos(window, &camx, &camy);
 		updateRotation(camx-cam_prevx, camy-cam_prevy);
 
+		int g=0;
+		for (; g<1000000; g++)
 		generateViewMatrix();
 		//------------- Calculate Matrices --------------------- //
 
