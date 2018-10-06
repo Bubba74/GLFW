@@ -11,10 +11,16 @@
 
 #include "Shader.h"
 
-int WIN_X = 1000;
-int WIN_Y = 200;
-int WIN_WIDTH = 800;
-int WIN_HEIGHT = 600;
+// int WIN_X = 1000;
+// int WIN_Y = 200;
+// int WIN_WIDTH = 800;
+// int WIN_HEIGHT = 600;
+
+int WIN_X = 0;
+int WIN_Y = 0;
+int WIN_WIDTH = 1920;
+int WIN_HEIGHT = 1080;
+
 
 unsigned int loadTexture(char *);
 
@@ -34,6 +40,26 @@ float c_r = 512/1024.0f; //c_r
 struct frame {
 	float x, y, z;
 	float width, height;
+};
+
+#define side1 0
+#define side2 8
+#define side3 16
+#define side4 24
+
+int buildingSideIndices[] = {
+	side1+0, side1+1, side1+2,   side1+1, side1+2, side1+3,
+	side1+4, side1+5, side1+6,   side1+5, side1+6, side1+7,
+
+	side2+0, side2+1, side2+2,   side2+1, side2+2, side2+3,
+	side2+4, side2+5, side2+6,   side2+5, side2+6, side2+7,
+
+	side3+0, side3+1, side3+2,   side3+1, side3+2, side3+3,
+	side3+4, side3+5, side3+6,   side3+5, side3+6, side3+7,
+
+	side4+0, side4+1, side4+2,   side4+1, side4+2, side4+3,
+	side4+4, side4+5, side4+6,   side4+5, side4+6, side4+7
+
 };
 
 unsigned int getBuildingVAO(struct frame building){
@@ -107,16 +133,22 @@ unsigned int getBuildingVAO(struct frame building){
 	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-	// unsigned int EBO;
-	// glGenBuffers
+	unsigned int EBO;
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
+	//Bind/setup VBO data
 	glBufferData(GL_ARRAY_BUFFER, cVertices*cFloats*sizeof(float), vertices, GL_STATIC_DRAW);
-
 	int stride = 5*sizeof(float);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*) 0);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*) (3*sizeof(float)));
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
+
+	//Bind/setup EBO data
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(buildingSideIndices), buildingSideIndices, GL_STATIC_DRAW);
+
+
 
 	glBindVertexArray(0);
 
@@ -282,11 +314,51 @@ int main(){
 	unsigned int modelLoc = glGetUniformLocation(crateShader->ID, "model");
 	unsigned int viewLoc = glGetUniformLocation(crateShader->ID, "view");
 	unsigned int perspectiveLoc = glGetUniformLocation(crateShader->ID, "perspective");
+	unsigned int colorLoc = glGetUniformLocation(crateShader->ID, "paint");
 
-
-	struct frame building = {-20, 0, -20, 10, 50};
-	unsigned int buildingVAO = getBuildingVAO(building);
 	unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
+
+	struct frame buildings[] = {
+		{-20, 0, -20, 10, 50},
+		{-18,50, -18,  6, 20},
+
+		{10, 0,  10,  5,  10},
+		{15, 0,  10,  5,  10},
+
+		{10, 0, -10,  5,  10},
+		{15, 0, -10,  5,  10},
+
+		{-10, 0, 10,  2,  6},
+		{-15, 0, 10,  2,  4},
+
+		{50, 0, 40,  30, 150},
+		{-51, 0, -30,  30, 100}
+	};
+
+	vec3 colors[] = {
+
+		{1, 0, 0},
+		{0, 0, 1},
+
+		{1, 0, 0},
+		{1, 1, 0},
+		{1, 0, 1},
+
+		{0, 1, 0},
+		{0, 1, 1},
+		{1, 1, 0},
+
+		{0, 0, 1},
+		{0, 1, 1}
+		// {1, 0, 1},
+
+	};
+
+	// struct frame building = {-20, 0, -20, 10, 50};
+	unsigned int buildingVAOs[10];
+	int temp;
+	for (temp=0; temp<10; temp++)
+		buildingVAOs[temp] = getBuildingVAO(buildings[temp]);
 
 
 	glEnable(GL_BLEND);
@@ -314,24 +386,25 @@ int main(){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// ------------------ Process Input --------------------- //
-		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.01;
-		if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.01;
+		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
+		if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
 
 		if (glfwGetKey(window, GLFW_KEY_UP)){
-			x += cosf(-theta)/100;
-			y += sinf(-theta)/100;
+			x += cosf(-theta)/20;
+			y += sinf(-theta)/20;
 		}
 		if (glfwGetKey(window, GLFW_KEY_DOWN)){
-			x -= cosf(-theta)/100;
-			y -= sinf(-theta)/100;
+			x -= cosf(-theta)/20;
+			y -= sinf(-theta)/20;
 		}
 		if (glfwGetKey(window, GLFW_KEY_ENTER)){
-			z += 0.01f;
+			z += 0.1f;
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)){
-			z -= 0.01f;
+			z -= 0.1f;
 		}
 
+		int keyR = glfwGetKey(window, GLFW_KEY_R);
 		int keyW = glfwGetKey(window, GLFW_KEY_W);
 		int keyA = glfwGetKey(window, GLFW_KEY_A);
 		int keyS = glfwGetKey(window, GLFW_KEY_S);
@@ -343,6 +416,12 @@ int main(){
 		double speedForward = 0.08;
 		double speedStrafe = 0.07;
 		double speedRaise = 0.1;		//Positive for up
+
+		if (keyR){
+			speedForward *= 2;
+			speedStrafe *= 2;
+			speedRaise *= 2;
+		}
 
 		if (!(keyW && keyS))
 			if (keyW) cameraForward(cam, speedForward);
@@ -368,7 +447,7 @@ int main(){
 
 
 		//Perspective
-		mat4x4_perspective(perspective, M_PI/3, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 100.0f);
+		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 1000.0f);
 
 		//Product
 		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
@@ -391,6 +470,8 @@ int main(){
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
+		vec3 black = {0, 0, 0};
+		glUniform3fv(colorLoc, 1, black);
 		//Bind crate and face textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, crateTexture);
@@ -410,10 +491,13 @@ int main(){
 		mat4x4_identity(crateLocal);
 		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
 
-		//Bind buildingVAO and draw triangles
-		glBindVertexArray(buildingVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 32);
-
+		int buildingc;
+		for (buildingc=0; buildingc<10; buildingc++){
+			//Bind buildingVAO and draw triangles
+			glBindVertexArray(buildingVAOs[buildingc]);
+			glUniform3fv(colorLoc, 1, colors[buildingc]);
+			glDrawElements(GL_TRIANGLES, 48, GL_UNSIGNED_INT, 0);
+		}
 
 		//Unbind VAO
 		glBindVertexArray(0);
