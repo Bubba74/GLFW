@@ -4,6 +4,7 @@
 
 #include <camera.h>
 #include <linmath.h>
+#include <curl/curl.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,10 +43,28 @@ struct frame {
 	float width, height;
 };
 
+struct image {
+	unsigned int size;
+	char *data;
+};
+
 #define side1 0
 #define side2 8
 #define side3 16
 #define side4 24
+
+size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
+	struct image *Image = (struct image*)userPtr;
+
+	if (Image->size+nmemb > 40000)
+		printf("Trying to load a file too big for the buffer!\n");
+
+	int i;
+	for (i=0; i<nmemb; i++){
+		Image->data[Image->size++] = data[i];
+	}
+	return nmemb;
+}
 
 int buildingSideIndices[] = {
 	side1+0, side1+1, side1+2,   side1+1, side1+2, side1+3,
@@ -366,6 +385,25 @@ int main(){
 
 	glEnable(GL_DEPTH_TEST);
 
+	//Setup fetch mechanice for camera frame
+	curl_global_init(CURL_GLOBAL_ALL);
+
+	char *URL = "169.232.114.104:8080/shot.jpg";
+	struct image Image;
+	Image.size = 0;
+	Image.data = malloc(40000);//Allocate 20K for frame
+	unsigned int cameraTexture = 0;
+
+	CURL *fetchFrame = curl_easy_init();
+	CURLcode curlCode;
+
+	if (!fetchFrame) printf("Failed to initialize curl!");
+
+	curl_easy_setopt(fetchFrame, CURLOPT_URL, URL);
+	curl_easy_setopt(fetchFrame, CURLOPT_HTTPGET, 1L);
+
+	curl_easy_setopt(fetchFrame, CURLOPT_WRITEFUNCTION, curlWrite);
+	curl_easy_setopt(fetchFrame, CURLOPT_WRITEDATA, &Image);
 
 	//Variables
 	float x = 0, y = 0, z = 0;
@@ -384,6 +422,23 @@ int main(){
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//Get Camera image
+		free(Image.data);//Release previous frame
+		Image.size = 0; //Reset size to 0
+		Image.data = malloc(40000);//Allocate 20K for the frame
+
+		curlCode = curl_easy_perform(fetchFrame);
+
+		if (curlCode != CURLE_OK){
+			printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
+		} else {
+
+			glDeleteTextures(1, &cameraTexture);
+
+			cameraTexture = loadTextureFromString(Image.data, Image.size);
+
+		}
 
 		// ------------------ Process Input --------------------- //
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
@@ -474,7 +529,7 @@ int main(){
 		glUniform3fv(colorLoc, 1, black);
 		//Bind crate and face textures
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, crateTexture);
+		glBindTexture(GL_TEXTURE_2D, cameraTexture);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, faceTexture);
 
