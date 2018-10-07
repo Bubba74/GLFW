@@ -43,28 +43,76 @@ struct frame {
 	float width, height;
 };
 
+#define IMAGE_MAX_SIZE 100000
 struct image {
 	unsigned int size;
 	char *data;
-};
+} Image;
 
 #define side1 0
 #define side2 8
 #define side3 16
 #define side4 24
 
-size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
-	struct image *Image = (struct image*)userPtr;
+CURL *fetchFrame;
+unsigned int cameraTexture;
 
-	if (Image->size+nmemb > 40000)
-		printf("Trying to load a file too big for the buffer!\n");
+size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
+	struct image *outputImage = (struct image*)userPtr;
+
+	if (outputImage->size+nmemb > IMAGE_MAX_SIZE)
+		printf("Trying to load a file too big for the buffer! %dbytes\n", outputImage->size+(int)nmemb);
 
 	int i;
 	for (i=0; i<nmemb; i++){
-		Image->data[Image->size++] = data[i];
+		outputImage->data[outputImage->size++] = data[i];
 	}
 	return nmemb;
 }
+
+double lastTime = 0;
+int frames = 0;
+
+void loadNewFrame(){
+
+	// if (glfwGetTime()-lastTime < 0.1) return;
+
+	//TODO can't load glTextures from separate thread,
+	// fetch data from server, load by stbi, then
+	// load onto new texture on main thread.
+
+	//Get Camera image
+	Image.size = 0; //Reset buffer to index 0
+
+	CURLcode curlCode = curl_easy_perform(fetchFrame);
+
+	if (curlCode != CURLE_OK){
+		printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
+	} else {
+
+		//Delete old texture after assigning new one
+		int temp = cameraTexture;
+		cameraTexture = loadTextureFromString(Image.data, Image.size);
+		glDeleteTextures(1, &temp);
+
+		printf("\t%d\n", (int)cameraTexture);
+		frames++;
+
+		double now = glfwGetTime();
+		if (now-lastTime > 1){
+			printf("FPS: %d\n", frames);
+			frames = 0;
+			lastTime = now;
+		}
+	}
+}//loadNewFrame
+
+void *loadFramesLoop(void *param){
+	while (!glfwWindowShouldClose((GLFWwindow *)param)){
+		loadNewFrame();
+	}
+	return NULL;
+}//loadFramesLoop
 
 int buildingSideIndices[] = {
 	side1+0, side1+1, side1+2,   side1+1, side1+2, side1+3,
@@ -246,6 +294,8 @@ int main(){
 		glfwTerminate();
 		return -1;
 	}
+	glfwSetTime(0);
+
 	glfwSetWindowPos(window, WIN_X, WIN_Y);
 	glfwSwapInterval(0);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -385,25 +435,58 @@ int main(){
 
 	glEnable(GL_DEPTH_TEST);
 
+
+	//----------- For Camera Fetching ------------- //
+
 	//Setup fetch mechanice for camera frame
 	curl_global_init(CURL_GLOBAL_ALL);
 
 	char *URL = "169.232.114.104:8080/shot.jpg";
-	struct image Image;
+	//Global Image struct
 	Image.size = 0;
-	Image.data = malloc(40000);//Allocate 20K for frame
-	unsigned int cameraTexture = 0;
+	Image.data = malloc(IMAGE_MAX_SIZE);//Allocate 20K for frame
 
-	CURL *fetchFrame = curl_easy_init();
-	CURLcode curlCode;
+	//Global CURL *
+	fetchFrame = curl_easy_init();
 
 	if (!fetchFrame) printf("Failed to initialize curl!");
 
 	curl_easy_setopt(fetchFrame, CURLOPT_URL, URL);
 	curl_easy_setopt(fetchFrame, CURLOPT_HTTPGET, 1L);
+	curl_easy_setopt(fetchFrame, CURLOPT_TCP_NODELAY, 1);
+	curl_easy_setopt(fetchFrame, CURLOPT_BUFFERSIZE, 50000L);
 
 	curl_easy_setopt(fetchFrame, CURLOPT_WRITEFUNCTION, curlWrite);
 	curl_easy_setopt(fetchFrame, CURLOPT_WRITEDATA, &Image);
+
+	//TV Panel
+	float tvVertices[] = {
+		-0.51,  0.25,  0.5, 0, 0,//TL
+		-0.51,  0.25, -0.5, 1, 0,//TR
+		-0.51, -0.25,  0.5, 0, 1,//BL
+		-0.51, -0.25,  0.5, 0, 1,//BL
+		-0.51,  0.25, -0.5, 1, 0,//TR
+		-0.51, -0.25, -0.5, 1, 1//BR
+	};
+
+	unsigned int tvVAO;
+	glGenVertexArrays(1, &tvVAO);
+	glBindVertexArray(tvVAO);
+
+	unsigned int tvVBO;
+	glGenBuffers(1, &tvVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, tvVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tvVertices), tvVertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(3*sizeof(float)));
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+
+	//Fetch camera frames from separate thread
+	pthread_t framesThread;
+	pthread_create(&framesThread, NULL, loadFramesLoop, window);
+
+	// ----------------------------------------------//
 
 	//Variables
 	float x = 0, y = 0, z = 0;
@@ -418,28 +501,12 @@ int main(){
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
 
-	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//Get Camera image
-		free(Image.data);//Release previous frame
-		Image.size = 0; //Reset size to 0
-		Image.data = malloc(40000);//Allocate 20K for the frame
-
-		curlCode = curl_easy_perform(fetchFrame);
-
-		if (curlCode != CURLE_OK){
-			printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
-		} else {
-
-			glDeleteTextures(1, &cameraTexture);
-
-			cameraTexture = loadTextureFromString(Image.data, Image.size);
-
-		}
-
+		// printf("CameraTexture: %d\n", (int)cameraTexture);
+		// loadNewFrame();
 		// ------------------ Process Input --------------------- //
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
 		if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
@@ -529,13 +596,20 @@ int main(){
 		glUniform3fv(colorLoc, 1, black);
 		//Bind crate and face textures
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, cameraTexture);
+		glBindTexture(GL_TEXTURE_2D, crateTexture);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, faceTexture);
 
 		//Bind CrateVAO and draw triangles
 		glBindVertexArray(crateVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		//Bind TV VAO
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, cameraTexture);
+		//Draw TV
+		glBindVertexArray(tvVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 
 		//Bind building texture
