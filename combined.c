@@ -78,9 +78,6 @@ void loadCameraTexture(){
 		if (!newFrameReady)
 					return;
 
-		glDeleteTextures(1, &cameraTexture);
-
-		glGenTextures(1, &cameraTexture);
 	  glActiveTexture(GL_TEXTURE0);
 	  glBindTexture(GL_TEXTURE_2D, cameraTexture);
 
@@ -98,6 +95,7 @@ void loadCameraTexture(){
 	  glTexImage2D(GL_TEXTURE_2D, 0, inputFormat, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, imageData);
 
 		stbi_image_free(imageData);
+
 		//Request new frame from camera thread
 		newFrameReady = 0;
 
@@ -111,7 +109,7 @@ void fetchCameraImage(){
 	if (newFrameReady)
 		return;
 
-// if (glfwGetTime()-lastTime < 0.1) return;
+		// if (glfwGetTime()-lastTime < 0.1) return;
 
 
 	//Get Camera image
@@ -124,7 +122,7 @@ void fetchCameraImage(){
 		printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
 	} else {
 
-			newFrameReady = 1;
+		newFrameReady = 1;
 
 		frames++;
 
@@ -486,8 +484,6 @@ int main(){
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_DEPTH_TEST);
-
-
 
 	//----------- For Camera Fetching ------------- //
 	//TV Panel
