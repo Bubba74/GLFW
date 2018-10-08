@@ -8,9 +8,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-
 unsigned int loadTexture(char *filePath);
 unsigned int loadTextureFromString(char *imageData, unsigned int len);
-
 
 #endif

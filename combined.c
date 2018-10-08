@@ -25,6 +25,7 @@ int WIN_Y = 0;
 int WIN_WIDTH = 1920;
 int WIN_HEIGHT = 1080;
 
+unsigned char *stbi_load_from_memory(char *data, int len, int *, int *, int *, int);
 
 void setViewPort();
 void loadShaders(unsigned int, const char *, const char *);
@@ -55,11 +56,8 @@ struct image {
 #define side3 16
 #define side4 24
 
-pthread_mutex_t camera_data_mutex, camera_flag_mutex;
-
 CURL *fetchFrame;
 unsigned int cameraTexture, newFrameReady = 0;
-char *imageData;
 unsigned int width, height, nrChannels;
 
 size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
@@ -77,14 +75,9 @@ size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
 
 void loadCameraTexture(){
 		//Wait for an available frame
-		pthread_mutex_lock(&camera_flag_mutex);
-		if (!newFrameReady){
-			pthread_mutex_unlock(&camera_flag_mutex);
-			return;
-		}
-		pthread_mutex_unlock(&camera_flag_mutex);
+		if (!newFrameReady)
+					return;
 
-		pthread_mutex_lock(&camera_data_mutex);
 		glDeleteTextures(1, &cameraTexture);
 
 		glGenTextures(1, &cameraTexture);
@@ -100,16 +93,13 @@ void loadCameraTexture(){
 	  if (nrChannels == 4){
 	    inputFormat = GL_RGBA;
 	  }
-		imageData = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
+		unsigned char *imageData = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
 
 	  glTexImage2D(GL_TEXTURE_2D, 0, inputFormat, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, imageData);
 
-		pthread_mutex_lock(&camera_flag_mutex);
+		stbi_image_free(imageData);
 		//Request new frame from camera thread
 		newFrameReady = 0;
-		pthread_mutex_unlock(&camera_flag_mutex);
-
-		pthread_mutex_unlock(&camera_data_mutex);
 
 }//loadCameraImage
 
@@ -118,19 +108,11 @@ int frames = 0;
 void fetchCameraImage(){
 
 	//Don't read new frames if the old one is still there
-	pthread_mutex_lock(&camera_flag_mutex);
-	if (newFrameReady) {
-		pthread_mutex_unlock(&camera_flag_mutex);
+	if (newFrameReady)
 		return;
-	}
-	pthread_mutex_unlock(&camera_flag_mutex);
-	// printf("Fetching...");
-	// fflush(stdout);
-	// if (glfwGetTime()-lastTime < 0.1) return;
 
-	//TODO can't load glTextures from separate thread,
-	// fetch data from server, load by stbi, then
-	// load onto new texture on main thread.
+// if (glfwGetTime()-lastTime < 0.1) return;
+
 
 	//Get Camera image
 	Image.size = 0; //Reset buffer to index 0
@@ -142,50 +124,7 @@ void fetchCameraImage(){
 		printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
 	} else {
 
-		typedef int bool;
-		bool loadTexture = 0;
-
-		if (loadTexture){
-			glDeleteTextures(1, &cameraTexture);
-			cameraTexture = loadTextureFromString(Image.data, Image.size);
-
-		} else {
-			/*
-
-			pthread_mutex_lock(&camera_data_mutex);
-			// stbi_uc *read = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
-			// unsigned char *read = stbi_load("textures/UncoloredCar.png", &width, &height, &nrChannels, 0);
-
-			if (!read){
-				printf("Error: Failed to load image data from src of length %d\n", Image.size);
-				return;
-			}
-			if (imageData) free(imageData);
-			// imageData = read;
-
-			// printf("checking file (%d)...", (int)read);
-			fflush(stdout);
-
-			char c;
-			int index=0, w,h,chan;
-			for (w=0; w<width; w++)
-				for (h=0; h<height; h++)
-					for (chan=0; chan<nrChannels; chan++){
-						printf("%d ", index);
-						fflush(stdout);
-						c = read[index++];
-					}
-
-
-			// printf("done\n");
-			*/
-			pthread_mutex_lock(&camera_flag_mutex);
 			newFrameReady = 1;
-			pthread_mutex_unlock(&camera_flag_mutex);
-
-			pthread_mutex_unlock(&camera_data_mutex);
-
-		}
 
 		frames++;
 
@@ -195,6 +134,7 @@ void fetchCameraImage(){
 			frames = 0;
 			lastTime = now;
 		}
+
 	}
 }//loadNewFrame
 
@@ -575,9 +515,6 @@ int main(){
 
 
 	//Fetch camera frames from separate thread
-	pthread_mutex_init(&camera_data_mutex, NULL);
-	pthread_mutex_init(&camera_flag_mutex, NULL);
-
 	pthread_t framesThread;
 	pthread_create(&framesThread, NULL, loadFramesLoop, window);
 
@@ -600,11 +537,8 @@ int main(){
 	while (!glfwWindowShouldClose(window)){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// fetchCameraImage();
 		loadCameraTexture();
 
-		// printf("CameraTexture: %d\n", (int)cameraTexture);
-		// loadNewFrame();
 		// ------------------ Process Input --------------------- //
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
 		if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
@@ -764,31 +698,7 @@ int main(){
 			}
 		}
 
-
-
-		// int i;
-		// for (i=0; i<6; i++){
-		// 	mat4x4_translate(crateModel, tiles[i*2], tiles[i*2+1], 0);
-		// 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		// 	glDrawArrays(GL_TRIANGLES, 0, 6);
-		// }
-
-
-		//Draw origin crate
-		// mat4x4_translate_in_place(crateModel, -x, y, -z);
-		// glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		// glDrawArrays(GL_TRIANGLES, 0, 36);
-
 		glBindVertexArray(0);
-		// */
-		// ----------------Draw Objects --------------------//
-
-		// glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		// glBindVertexArray(VAO_right);
-		// glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-
-		// glBindVertexArray(0);
-
 
 		//GLFW Update Ticks
 		glfwPollEvents();
