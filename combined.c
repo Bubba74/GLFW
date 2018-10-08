@@ -5,10 +5,13 @@
 #include <camera.h>
 #include <linmath.h>
 #include <curl/curl.h>
+#include <pthread.h>
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+
+// #include <textures.h>
 
 #include "Shader.h"
 
@@ -22,8 +25,6 @@ int WIN_Y = 0;
 int WIN_WIDTH = 1920;
 int WIN_HEIGHT = 1080;
 
-
-unsigned int loadTexture(char *);
 
 void setViewPort();
 void loadShaders(unsigned int, const char *, const char *);
@@ -54,8 +55,12 @@ struct image {
 #define side3 16
 #define side4 24
 
+pthread_mutex_t camera_data_mutex, camera_flag_mutex;
+
 CURL *fetchFrame;
-unsigned int cameraTexture;
+unsigned int cameraTexture, newFrameReady = 0;
+char *imageData;
+unsigned int width, height, nrChannels;
 
 size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
 	struct image *outputImage = (struct image*)userPtr;
@@ -70,11 +75,63 @@ size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
 	return nmemb;
 }
 
+void loadCameraTexture(){
+		//Wait for an available frame
+		pthread_mutex_lock(&camera_flag_mutex);
+		if (!newFrameReady){
+			pthread_mutex_unlock(&camera_flag_mutex);
+			return;
+		}
+		pthread_mutex_unlock(&camera_flag_mutex);
+
+		printf("Loading...");
+		fflush(stdout);
+		// printf("Found frame\n");
+		//Delete old texture after assigning new one
+
+		pthread_mutex_lock(&camera_data_mutex);
+		glDeleteTextures(1, &cameraTexture);
+
+		glGenTextures(1, &cameraTexture);
+	  glActiveTexture(GL_TEXTURE0);
+	  glBindTexture(GL_TEXTURE_2D, cameraTexture);
+
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	  GLint inputFormat = GL_RGB;
+	  if (nrChannels == 4){
+	    inputFormat = GL_RGBA;
+	  }
+
+		printf("\tReadied texture 0x%lu (%d,%d,%d)\n", (unsigned long)imageData, width, height, nrChannels);
+	  glTexImage2D(GL_TEXTURE_2D, 0, inputFormat, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, imageData);
+		printf("\tLoaded image into texture\n");
+
+		pthread_mutex_lock(&camera_flag_mutex);
+		//Request new frame from camera thread
+		newFrameReady = 0;
+		pthread_mutex_unlock(&camera_flag_mutex);
+
+		pthread_mutex_unlock(&camera_data_mutex);
+
+}//loadCameraImage
+
 double lastTime = 0;
 int frames = 0;
+void fetchCameraImage(){
 
-void loadNewFrame(){
-
+	//Don't read new frames if the old one is still there
+	pthread_mutex_lock(&camera_flag_mutex);
+	if (newFrameReady) {
+		pthread_mutex_unlock(&camera_flag_mutex);
+		return;
+	}
+	pthread_mutex_unlock(&camera_flag_mutex);
+	printf("Fetching...");
+	fflush(stdout);
 	// if (glfwGetTime()-lastTime < 0.1) return;
 
 	//TODO can't load glTextures from separate thread,
@@ -84,18 +141,74 @@ void loadNewFrame(){
 	//Get Camera image
 	Image.size = 0; //Reset buffer to index 0
 
+	//Loads Camera frame into Image.data
 	CURLcode curlCode = curl_easy_perform(fetchFrame);
 
 	if (curlCode != CURLE_OK){
 		printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
 	} else {
 
-		//Delete old texture after assigning new one
-		int temp = cameraTexture;
-		cameraTexture = loadTextureFromString(Image.data, Image.size);
-		glDeleteTextures(1, &temp);
+		typedef int bool;
+		bool loadTexture = 0;
 
-		printf("\t%d\n", (int)cameraTexture);
+		if (loadTexture){
+			glDeleteTextures(1, &cameraTexture);
+			cameraTexture = loadTextureFromString(Image.data, Image.size);
+
+		} else {
+
+			unsigned char* testMalloc = malloc(1000000);
+			if (!testMalloc)
+				printf("Failed to load 1000000 bytes into memory\n");
+			free(testMalloc);
+
+			pthread_mutex_lock(&camera_data_mutex);
+			// stbi_uc *read = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
+			unsigned char *read = stbi_load("textures/UncoloredCar.png", &width, &height, &nrChannels, 0);
+
+			FILE* imageFile;
+			imageFile = fopen("test.jpg", "w");
+			int byte;
+			for (byte=0; byte<Image.size; byte++)
+				fprintf(imageFile, "%c", Image.data[byte]);
+			fflush(imageFile);
+			fclose(imageFile);
+
+
+			printf("%d --> %d=%dx%d...", Image.size, width*height, width, height);
+			fflush(stdout);
+			if (!read){
+				printf("Error: Failed to load image data from src of length %d\n", Image.size);
+				return;
+			}
+			if (imageData) free(imageData);
+			// imageData = read;
+
+			printf("checking file (%d)...", (int)read);
+			fflush(stdout);
+
+			char c;
+			int index=0, w,h,chan;
+			for (w=0; w<width; w++)
+				for (h=0; h<height; h++)
+					for (chan=0; chan<nrChannels; chan++){
+						printf("%d ", index);
+						fflush(stdout);
+						c = read[index++];
+					}
+
+
+			printf("done\n");
+
+			// printf("Loaded texture into %d\n", (unsigned int)imageData);
+			pthread_mutex_lock(&camera_flag_mutex);
+			newFrameReady = 1;
+			pthread_mutex_unlock(&camera_flag_mutex);
+
+			pthread_mutex_unlock(&camera_data_mutex);
+
+		}
+
 		frames++;
 
 		double now = glfwGetTime();
@@ -108,8 +221,29 @@ void loadNewFrame(){
 }//loadNewFrame
 
 void *loadFramesLoop(void *param){
+	//Global CURL *
+	curl_global_init(CURL_GLOBAL_ALL);
+
+	char *URL = "169.232.114.129:8080/shot.jpg";
+	//Global Image struct
+	Image.size = 0;
+	Image.data = malloc(IMAGE_MAX_SIZE);//Allocate 100K for frame
+
+	//Setup fetch mechanice for camera frame
+	fetchFrame = curl_easy_init();
+
+	if (!fetchFrame) printf("Failed to initialize curl!");
+
+	curl_easy_setopt(fetchFrame, CURLOPT_URL, URL);
+	curl_easy_setopt(fetchFrame, CURLOPT_HTTPGET, 1L);
+	curl_easy_setopt(fetchFrame, CURLOPT_TCP_NODELAY, 1);
+	curl_easy_setopt(fetchFrame, CURLOPT_BUFFERSIZE, 100000L);
+
+	curl_easy_setopt(fetchFrame, CURLOPT_WRITEFUNCTION, curlWrite);
+	curl_easy_setopt(fetchFrame, CURLOPT_WRITEDATA, &Image);
+
 	while (!glfwWindowShouldClose((GLFWwindow *)param)){
-		loadNewFrame();
+		fetchCameraImage();
 	}
 	return NULL;
 }//loadFramesLoop
@@ -436,29 +570,8 @@ int main(){
 	glEnable(GL_DEPTH_TEST);
 
 
+
 	//----------- For Camera Fetching ------------- //
-
-	//Setup fetch mechanice for camera frame
-	curl_global_init(CURL_GLOBAL_ALL);
-
-	char *URL = "169.232.114.104:8080/shot.jpg";
-	//Global Image struct
-	Image.size = 0;
-	Image.data = malloc(IMAGE_MAX_SIZE);//Allocate 20K for frame
-
-	//Global CURL *
-	fetchFrame = curl_easy_init();
-
-	if (!fetchFrame) printf("Failed to initialize curl!");
-
-	curl_easy_setopt(fetchFrame, CURLOPT_URL, URL);
-	curl_easy_setopt(fetchFrame, CURLOPT_HTTPGET, 1L);
-	curl_easy_setopt(fetchFrame, CURLOPT_TCP_NODELAY, 1);
-	curl_easy_setopt(fetchFrame, CURLOPT_BUFFERSIZE, 50000L);
-
-	curl_easy_setopt(fetchFrame, CURLOPT_WRITEFUNCTION, curlWrite);
-	curl_easy_setopt(fetchFrame, CURLOPT_WRITEDATA, &Image);
-
 	//TV Panel
 	float tvVertices[] = {
 		-0.51,  0.25,  0.5, 0, 0,//TL
@@ -482,7 +595,11 @@ int main(){
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 
+
 	//Fetch camera frames from separate thread
+	pthread_mutex_init(&camera_data_mutex, NULL);
+	pthread_mutex_init(&camera_flag_mutex, NULL);
+
 	pthread_t framesThread;
 	pthread_create(&framesThread, NULL, loadFramesLoop, window);
 
@@ -504,6 +621,9 @@ int main(){
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// fetchCameraImage();
+		loadCameraTexture();
 
 		// printf("CameraTexture: %d\n", (int)cameraTexture);
 		// loadNewFrame();

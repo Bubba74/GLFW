@@ -1,9 +1,5 @@
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#include <textures.h>
 
 unsigned int loadTexture(char *texturePath){
 // int main(){
@@ -44,6 +40,17 @@ unsigned int loadTextureFromString(char *textureData, unsigned int len){
 
   unsigned int width, height, nrChannels;
   unsigned char *data = stbi_load_from_memory(textureData, len, &width, &height, &nrChannels, 0);
+
+  int channel,w,h;
+  char c;
+  printf("Checking file...");
+  fflush(stdout);
+  for (w=0; w<width; w++)
+    for (h=0; h<height; h++)
+      for (channel=0; channel<nrChannels; channel++)
+        c = data[w*height*nrChannels+h*nrChannels+channel];
+
+  printf("done\n");
 
   if (!data){
     printf("Error: Failed to load image data from src of length %d\n", len);
