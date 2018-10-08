@@ -84,11 +84,6 @@ void loadCameraTexture(){
 		}
 		pthread_mutex_unlock(&camera_flag_mutex);
 
-		// printf("Loading...");
-		// fflush(stdout);
-		// printf("Found frame\n");
-		//Delete old texture after assigning new one
-
 		pthread_mutex_lock(&camera_data_mutex);
 		glDeleteTextures(1, &cameraTexture);
 
@@ -107,9 +102,7 @@ void loadCameraTexture(){
 	  }
 		imageData = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
 
-		// printf("\tReadied texture 0x%lu (%d,%d,%d)\n", (unsigned long)imageData, width, height, nrChannels);
 	  glTexImage2D(GL_TEXTURE_2D, 0, inputFormat, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, imageData);
-		// printf("\tLoaded image into texture\n");
 
 		pthread_mutex_lock(&camera_flag_mutex);
 		//Request new frame from camera thread
@@ -158,26 +151,11 @@ void fetchCameraImage(){
 
 		} else {
 			/*
-			unsigned char* testMalloc = malloc(1000000);
-			if (!testMalloc)
-				printf("Failed to load 1000000 bytes into memory\n");
-			free(testMalloc);
 
 			pthread_mutex_lock(&camera_data_mutex);
 			// stbi_uc *read = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
-			unsigned char *read = stbi_load("textures/UncoloredCar.png", &width, &height, &nrChannels, 0);
+			// unsigned char *read = stbi_load("textures/UncoloredCar.png", &width, &height, &nrChannels, 0);
 
-			FILE* imageFile;
-			imageFile = fopen("test.jpg", "w");
-			int byte;
-			for (byte=0; byte<Image.size; byte++)
-				fprintf(imageFile, "%c", Image.data[byte]);
-			fflush(imageFile);
-			fclose(imageFile);
-
-
-			printf("%d --> %d=%dx%d...", Image.size, width*height, width, height);
-			fflush(stdout);
 			if (!read){
 				printf("Error: Failed to load image data from src of length %d\n", Image.size);
 				return;
@@ -185,7 +163,7 @@ void fetchCameraImage(){
 			if (imageData) free(imageData);
 			// imageData = read;
 
-			printf("checking file (%d)...", (int)read);
+			// printf("checking file (%d)...", (int)read);
 			fflush(stdout);
 
 			char c;
@@ -199,9 +177,8 @@ void fetchCameraImage(){
 					}
 
 
-			printf("done\n");
+			// printf("done\n");
 			*/
-			// printf("Loaded texture into %d\n", (unsigned int)imageData);
 			pthread_mutex_lock(&camera_flag_mutex);
 			newFrameReady = 1;
 			pthread_mutex_unlock(&camera_flag_mutex);
