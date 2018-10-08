@@ -84,8 +84,8 @@ void loadCameraTexture(){
 		}
 		pthread_mutex_unlock(&camera_flag_mutex);
 
-		printf("Loading...");
-		fflush(stdout);
+		// printf("Loading...");
+		// fflush(stdout);
 		// printf("Found frame\n");
 		//Delete old texture after assigning new one
 
@@ -105,10 +105,11 @@ void loadCameraTexture(){
 	  if (nrChannels == 4){
 	    inputFormat = GL_RGBA;
 	  }
+		imageData = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
 
-		printf("\tReadied texture 0x%lu (%d,%d,%d)\n", (unsigned long)imageData, width, height, nrChannels);
+		// printf("\tReadied texture 0x%lu (%d,%d,%d)\n", (unsigned long)imageData, width, height, nrChannels);
 	  glTexImage2D(GL_TEXTURE_2D, 0, inputFormat, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, imageData);
-		printf("\tLoaded image into texture\n");
+		// printf("\tLoaded image into texture\n");
 
 		pthread_mutex_lock(&camera_flag_mutex);
 		//Request new frame from camera thread
@@ -130,8 +131,8 @@ void fetchCameraImage(){
 		return;
 	}
 	pthread_mutex_unlock(&camera_flag_mutex);
-	printf("Fetching...");
-	fflush(stdout);
+	// printf("Fetching...");
+	// fflush(stdout);
 	// if (glfwGetTime()-lastTime < 0.1) return;
 
 	//TODO can't load glTextures from separate thread,
@@ -156,7 +157,7 @@ void fetchCameraImage(){
 			cameraTexture = loadTextureFromString(Image.data, Image.size);
 
 		} else {
-
+			/*
 			unsigned char* testMalloc = malloc(1000000);
 			if (!testMalloc)
 				printf("Failed to load 1000000 bytes into memory\n");
@@ -199,7 +200,7 @@ void fetchCameraImage(){
 
 
 			printf("done\n");
-
+			*/
 			// printf("Loaded texture into %d\n", (unsigned int)imageData);
 			pthread_mutex_lock(&camera_flag_mutex);
 			newFrameReady = 1;
