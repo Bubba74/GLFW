@@ -2,10 +2,10 @@
 #include <textures.h>
 
 unsigned int loadTexture(char *texturePath){
-// int main(){
 
   unsigned int width, height, nrChannels;
-  unsigned char *data = stbi_load(texturePath, &width, &height, &nrChannels, 0);
+  // unsigned char *data = stbi_load(texturePath, &width, &height, &nrChannels, 0);
+  unsigned char *data = NULL;
 
   if (!data){
     printf("Error: Failed to load image data from %s\n", texturePath);
@@ -36,10 +36,10 @@ unsigned int loadTexture(char *texturePath){
 }
 
 unsigned int loadTextureFromString(char *textureData, unsigned int len){
-// int main(){
 
   unsigned int width, height, nrChannels;
-  unsigned char *data = stbi_load_from_memory(textureData, len, &width, &height, &nrChannels, 0);
+  // unsigned char *data = stbi_load_from_memory(textureData, len, &width, &height, &nrChannels, 0);
+  unsigned char *data = NULL;
 
   int channel,w,h;
   char c;

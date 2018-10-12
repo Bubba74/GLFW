@@ -71,7 +71,7 @@ size_t curlWrite(char *data, size_t one, size_t nmemb, void *userPtr){
 		outputImage->data[outputImage->size++] = data[i];
 	}
 	return nmemb;
-}
+}//curlWrite
 
 void loadCameraTexture(){
 		//Wait for an available frame
@@ -122,8 +122,25 @@ void fetchCameraImage(){
 		printf("Curl fetch failed\n%s", curl_easy_strerror(curlCode));
 	} else {
 
-		newFrameReady = 1;
+		//TODO - Test loading image from alternate thread.
+		//	maybe convert to 32-bit BGRA for quicker CPU->GPU transfer
 
+		unsigned char *pixelData = stbi_load_from_memory(Image.data, Image.size, &width, &height, &nrChannels, 0);
+
+		printf("Checking alt-thread stbi...");
+		fflush(stdout);
+
+		char dump;
+		int counter, w, h, c;
+		for (w=0; w<width; w++)
+			for (h=0; h<height; h++)
+				for (c=0; c<nrChannels; c++)
+					dump = pixelData[counter++];
+
+		printf("done\n");
+
+
+		newFrameReady = 1;
 		frames++;
 
 		double now = glfwGetTime();
@@ -140,7 +157,7 @@ void *loadFramesLoop(void *param){
 	//Global CURL *
 	curl_global_init(CURL_GLOBAL_ALL);
 
-	char *URL = "169.232.114.129:8080/shot.jpg";
+	char *URL = "169.232.114.179:8080/shot.jpg";
 	//Global Image struct
 	Image.size = 0;
 	Image.data = malloc(IMAGE_MAX_SIZE);//Allocate 100K for frame
@@ -406,10 +423,12 @@ int main(){
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 
-	unsigned int tileTexture = loadTexture("textures/map.png");
-
-	unsigned int crateTexture = loadTexture("textures/map.png");
-	unsigned int faceTexture = loadTexture("textures/awesome.png");
+	// unsigned int tileTexture = loadTexture("textures/map.png");
+	// unsigned int crateTexture = loadTexture("textures/map.png");
+	// unsigned int faceTexture = loadTexture("textures/awesome.png");
+	unsigned int tileTexture = NULL;
+	unsigned int crateTexture = NULL;
+	unsigned int faceTexture = NULL;
 
 
 	shader->use(shader);
@@ -435,7 +454,9 @@ int main(){
 	unsigned int perspectiveLoc = glGetUniformLocation(crateShader->ID, "perspective");
 	unsigned int colorLoc = glGetUniformLocation(crateShader->ID, "paint");
 
-	unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
+	// unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
+	unsigned int buildingTexture = 0;
+
 
 	struct frame buildings[] = {
 		{-20, 0, -20, 10, 50},
