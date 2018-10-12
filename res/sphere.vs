@@ -8,7 +8,7 @@ uniform mat4 view;
 uniform mat4 perspective;
 
 
-int main(){
+void main(){
   gl_Position = vec4(pos, 1);
-  gl_Position = perspective * view * model * local;
+  gl_Position = perspective * view * model * local * gl_Position;
 }

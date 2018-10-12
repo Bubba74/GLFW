@@ -364,8 +364,8 @@ int main(){
 
 	//Create and render a sphere
 	Sphere *sphere = sphere_create(0, 0, 0, 1);
-	sphere_rgba(sphere, 1, 0, 0);
-	sphere_init_model(sphere, 5, 8);
+	sphere_rgba(sphere, 1, 0, 0, 1);
+	sphere_init_model(sphere, 40, 40);
 
 	unsigned int sphereVAO;
 	glGenVertexArrays(1, &sphereVAO);
@@ -378,11 +378,12 @@ int main(){
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
 	glEnableVertexAttribArray(0);
 
-	unsigned int sphereShader = loadShader("res/sphere.vs", "res/sphere.fs");
-	unsigned int sphereLocalLoc = glGetUniformLocation(sphereShader, "local"),
-							 sphereModelLoc = glGetUniformLocation(sphereShader, "model"),
-							 sphereViewLoc  = glGetUniformLocation(sphereShader, "view"),
-							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader, "perspective");
+	Shader *sphereShader = getShaderObject();
+	sphereShader->loadShader(sphereShader, "res/sphere.vs", "res/sphere.fs");
+	unsigned int sphereLocalLoc = glGetUniformLocation(sphereShader->ID, "local"),
+							 sphereModelLoc = glGetUniformLocation(sphereShader->ID, "model"),
+							 sphereViewLoc  = glGetUniformLocation(sphereShader->ID, "view"),
+							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader->ID, "perspective");
 
 
 	//Enable transparency and cam-z calculations
@@ -479,6 +480,9 @@ int main(){
 
 		// ------------------- Render Crate -------------------- //
 
+		mat4x4 localIdentity;
+		mat4x4_identity(localIdentity);
+
 		mat4x4 crateLocal, crateModel;
 		mat4x4_identity(crateModel);
 		mat4x4_identity(crateLocal);//rot
@@ -489,7 +493,7 @@ int main(){
 		glUseProgram(crateShader->ID);
 
 		//Send matrix transformations to shader program
-		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
@@ -512,8 +516,7 @@ int main(){
 		glBindTexture(GL_TEXTURE_2D, buildingTexture);
 
 		//Replace crateLocal with neutral matrix
-		mat4x4_identity(crateLocal);
-		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
 
 		int buildingc;
 		for (buildingc=0; buildingc<10; buildingc++){
@@ -525,15 +528,15 @@ int main(){
 
 		//Render Sphere
 		sphereShader->use(sphereShader);
-		glBindVertexArray(sphereVAO);
-
 		//Send matrix transformations to shader program
 		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
 		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
 		glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
-
+		//Bind Sphere VAO
+		glBindVertexArray(sphereVAO);
+		glDrawArrays(GL_LINE_STRIP, 0, sphere->vertexCount);
 
 
 
