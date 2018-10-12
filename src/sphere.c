@@ -1,8 +1,7 @@
 
 #include <sphere.h>
 
-Sphere *sphere_create(double x, double y, double z, double radius)
-{
+Sphere *sphere_create(double x, double y, double z, double radius) {
   Sphere *sphere = malloc(sizeof(Sphere));
   sphere->x = x;
   sphere->y = y;
@@ -13,8 +12,7 @@ Sphere *sphere_create(double x, double y, double z, double radius)
   return sphere;
 }//sphere_create
 
-void sphere_rgba(Sphere *obj, float r, float g, float b, float a)
-{
+void sphere_rgba(Sphere *obj, float r, float g, float b, float a) {
   obj->rgba[0] = r;
   obj->rgba[1] = g;
   obj->rgba[2] = b;
@@ -26,8 +24,8 @@ float sphere__norm (float value){
   if (value > 1) return 1;
   return value;
 }//sphere__norm
-void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon)
-{   //Load an xyz point into the vertex array based off of lon/lat coordinates
+void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
+  //Load an xyz point into the vertex array based off of lon/lat coordinates
   lat = M_PI * (lat / 180.0f);
   lon = M_PI * (lon / 180.0f);
   float x = sinf(lon)*cosf(lat);
@@ -40,9 +38,7 @@ void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon)
   obj->vertices[(*index)++] = y;
   obj->vertices[(*index)++] = z;
 }//sphere__add_point
-
-void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count)
-{
+void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count) {
   //Check conditions
   if (obj == NULL){
     fprintf(stderr, "sphere_create_model: received NULL Sphere pointer\n");
@@ -57,6 +53,10 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
     return;
   }
 
+  //Store paramteres for future reference
+  obj->lats = lat_count;
+  obj->lons = lon_count;
+
   //Initialize loop variables
   float latDelta = 360.0 / (2*lat_count);
   float latStart = -90.0 + latDelta/2.0;
@@ -67,7 +67,8 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
   float lonDelta = 360.0/(lon_count-1); //Same concept as for deltaLat
   float lon = 0;    //For each latitude, longitude goes from [0, 360]
 
-  // OLD: Allocate memory for vertices: 1 for top, 1 for bottom, long_count for middle
+  // Allocate memory: # of points around sphere (lon_count) for every row(lat_count);
+    // as each vertex is xyz, the float array counts 3x the above.
   obj->vertexCount = lon_count * lat_count;
   obj->vertices = malloc(3*obj->vertexCount*sizeof(float));
 
@@ -80,3 +81,29 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
   }
 
 }//sphere_create_model
+
+void sphere__add_index(int *indices, int *index, int lons, int lat_i, int lon_i){
+  //The absolute index (in obj->vertices) is the current index around the
+    // horizontal (lon_i) + the # of points per row (lons) * the row index (lat_i)
+  int vertex_i = lons*lat_i + lon_i;
+  indices[(*index)++] = vertex_i;
+}//sphere__add_index
+
+int *sphere_ebo_indices(int *indicesCount, unsigned int lat_count, unsigned int lon_count){
+
+  //Allocate memory for indices
+  (*indicesCount) = 2 * lat_count * lon_count;
+  int *indices = malloc( *indicesCount * sizeof(int));
+
+  int index = 0;
+
+  int lat_i, lon_i;
+  for (lat_i=0; lat_i<lat_count; lat_i++){
+    for (lon_i=0; lon_i<lon_count; lon_i++){
+      sphere__add_index(indices, &index, lon_count, lat_i, lon_i);
+      sphere__add_index(indices, &index, lon_count, (lat_i+1)%lat_count, lon_i);
+    }
+  }
+
+  return indices;
+}//sphere_ebo_indices

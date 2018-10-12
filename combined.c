@@ -134,9 +134,11 @@ unsigned int getBuildingVAO(struct frame building){
 	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
+	//Bind/setup EBO data
 	unsigned int EBO;
 	glGenBuffers(1, &EBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(buildingSideIndices), buildingSideIndices, GL_STATIC_DRAW);
 
 	//Bind/setup VBO data
 	glBufferData(GL_ARRAY_BUFFER, cVertices*cFloats*sizeof(float), vertices, GL_STATIC_DRAW);
@@ -146,8 +148,6 @@ unsigned int getBuildingVAO(struct frame building){
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 
-	//Bind/setup EBO data
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(buildingSideIndices), buildingSideIndices, GL_STATIC_DRAW);
 
 
 
@@ -363,9 +363,10 @@ int main(){
 
 
 	//Create and render a sphere
+	int lats = 10, lons = 10;
 	Sphere *sphere = sphere_create(0, 0, 0, 1);
 	sphere_rgba(sphere, 1, 0, 0, 1);
-	sphere_init_model(sphere, 40, 40);
+	sphere_init_model(sphere, lats, lons);
 
 	unsigned int sphereVAO;
 	glGenVertexArrays(1, &sphereVAO);
@@ -377,6 +378,13 @@ int main(){
 	glBufferData(GL_ARRAY_BUFFER, 3*sphere->vertexCount*sizeof(float), sphere->vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
 	glEnableVertexAttribArray(0);
+
+	int indexCount;
+	int *indices = sphere_ebo_indices(&indexCount, lats, lons);
+	unsigned int sphereEBO;
+	glGenBuffers(1, &sphereEBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(int), indices, GL_STATIC_DRAW);
 
 	Shader *sphereShader = getShaderObject();
 	sphereShader->loadShader(sphereShader, "res/sphere.vs", "res/sphere.fs");
@@ -536,7 +544,8 @@ int main(){
 
 		//Bind Sphere VAO
 		glBindVertexArray(sphereVAO);
-		glDrawArrays(GL_LINE_STRIP, 0, sphere->vertexCount);
+		// glDrawArrays(GL_POINTS, 0, sphere->vertexCount);
+		glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
 
 
 
