@@ -18,14 +18,14 @@ void sphere_rgba(Sphere *obj, float r, float g, float b)
   obj->rgba = vec4(r, g, b, a);
 }//sphere_rgba
 
-void sphere__add_point(Sphere *obj, int *index, double lon, double lat)
+void sphere__add_point(Sphere *obj, int *index, double lat, double lon)
 {   //Load an xyz point into the vertex array based off of lon/lat coordinates
   obj->vertices[(*index)++] = sinf(lon)*cosf(lat);
   obj->vertices[(*index)++] = sinf(lat);
   obj->vertices[(*index)++] = cosf(lon)*cosf(lat);
 }//sphere__add_point
 
-void sphere_create_model(Sphere *obj, unsigned int lon_count, unsigned int lat_count)
+void sphere_create_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count)
 {
   //Check conditions
   if (obj == NULL){
@@ -60,7 +60,7 @@ void sphere_create_model(Sphere *obj, unsigned int lon_count, unsigned int lat_c
   for (lat = latStart; lat<=latEnd; lat+=latDelta){
     for (lon=0; lon<=360.0; lon+=lonDelta)
     {
-      sphere__add_point(obj, &ind, lon, lat);
+      sphere__add_point(obj, &ind, lat, lon);
       //For the top and bottom, only append the one point
       if (lat == latStart || lat == latEnd)
         break;

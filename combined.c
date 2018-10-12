@@ -2,8 +2,9 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include <camera.h>
 #include <linmath.h>
+#include <camera.h>
+#include <sphere.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -361,11 +362,34 @@ int main(){
 		buildingVAOs[temp] = getBuildingVAO(buildings[temp]);
 
 
+	//Create and render a sphere
+	Sphere *sphere = sphere_create(0, 0, 0, 1);
+	sphere_rgba(sphere, 1, 0, 0);
+	sphere_init_model(sphere, 5, 8);
+
+	unsigned int sphereVAO;
+	glGenVertexArrays(1, &sphereVAO);
+	glBindVertexArray(sphereVAO);
+
+	unsigned int sphereVBO;
+	glGenBuffers(1, &sphereVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
+	glBufferData(GL_ARRAY_BUFFER, 3*sphere->vertexCount*sizeof(float), sphere->vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
+	glEnableVertexAttribArray(0);
+
+	unsigned int sphereShader = loadShader("res/sphere.vs", "res/sphere.fs");
+	unsigned int sphereLocalLoc = glGetUniformLocation(sphereShader, "local"),
+							 sphereModelLoc = glGetUniformLocation(sphereShader, "model"),
+							 sphereViewLoc  = glGetUniformLocation(sphereShader, "view"),
+							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader, "perspective");
+
+
+	//Enable transparency and cam-z calculations
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_DEPTH_TEST);
-
 
 	//Variables
 	float x = 0, y = 0, z = 0;
@@ -498,6 +522,20 @@ int main(){
 			glUniform3fv(colorLoc, 1, colors[buildingc]);
 			glDrawElements(GL_TRIANGLES, 48, GL_UNSIGNED_INT, 0);
 		}
+
+		//Render Sphere
+		sphereShader->use(sphereShader);
+		glBindVertexArray(sphereVAO);
+
+		//Send matrix transformations to shader program
+		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
+		glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+
+
+
+
 
 		//Unbind VAO
 		glBindVertexArray(0);
