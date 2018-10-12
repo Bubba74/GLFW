@@ -20,7 +20,7 @@ typedef struct {
 
 Sphere *sphere_create(double x, double y, double z, double radius);
 void sphere_rgba(Sphere *obj, float r, float g, float b, float a);
-void sphere_init_model(Sphere *obj, unsigned int lon_count, unsigned int lat_count);
-
+void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count);
+float *sphere_ebo_vertices(int *triangleStripCount, unsigned int lat_count, unsigned int lon_count);
 
 #endif
