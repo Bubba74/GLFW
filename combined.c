@@ -32,6 +32,7 @@ void framebuffer_size_callback (GLFWwindow*, int, int);
 void window_pos_callback (GLFWwindow*, int, int);
 
 void processInput (GLFWwindow*);
+void updateDroplets(Sphere *droplets[], int droplets_c);
 
 float c_t = 512/512.0f; //c_t
 float c_b = 0/512.0f; //c_btom
@@ -363,16 +364,16 @@ int main(){
 
 
 	//Create and render a sphere
-	int lats = 10, lons = 10;
+	int lats = 50, lons = 50;
 
-	Sphere *sphere = sphere_create(0, 0, 0, 1);
+	Sphere *sphere = sphere_create(0, 0, 0, 0.2);
 	sphere_rgba(sphere, 1, 0, 0, 1);
 	sphere_init_model(sphere, lats, lons);
 	sphere_attach_vao(sphere);
 
 	float xyzr[] = {
-		3,    1, 0,    1,
-		3, 2.75, 0, 0.75
+		3,    10, 0,    10,
+		3, 		25, 0, 	 7.5
 	};
 
 	int sphere_c = 2;
@@ -384,8 +385,31 @@ int main(){
 		sphere_rgba(spheres[i], 1, 1, 1, 1);
 		sphere_init_model(spheres[i], lats, lons);
 		sphere_attach_vao(spheres[i]);
-
 	}
+
+	int SEED = 125236;
+	srand(SEED);
+
+
+	double cx = 30, cy = 10, cz = 5, cr = 3;
+	int droplets_c = 100;
+	Sphere *droplets[droplets_c];
+
+	int dc;
+	for (dc=0; dc<droplets_c; dc++){
+		double x = cx+cr* 2*(rand()/(float)RAND_MAX)-cr;
+		double y = cy+cr* 2*(rand()/(float)RAND_MAX)-cr;
+		double z = cz+cr* 2*(rand()/(float)RAND_MAX)-cr;
+
+		droplets[dc] = sphere_create(x, y, z, 1);
+		droplets[dc]->vel[0] = 0;
+		droplets[dc]->vel[1] = 0;
+		droplets[dc]->vel[2] = 0;
+		sphere_rgba(droplets[dc], 0, 0.1, 0.9, 1);
+		sphere_init_model(droplets[dc], 5, 8);
+		sphere_attach_vao(droplets[dc]);
+	}
+
 
 	Shader *sphereShader = getShaderObject();
 	sphereShader->loadShader(sphereShader, "res/sphere.vs", "res/sphere.fs");
@@ -406,7 +430,7 @@ int main(){
 	vec3 targetPos = {10, 0, 0};
 	mat4x4 targetTransform;
 	mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
-
+	mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 
 	//Variables
 	float x = 0, y = 0, z = 0;
@@ -421,10 +445,15 @@ int main(){
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
 
+
+	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//Update water graphics
+		updateDroplets(droplets, droplets_c);
 
 		// ------------------ Process Input --------------------- //
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
@@ -509,7 +538,7 @@ int main(){
 		glUseProgram(crateShader->ID);
 
 		//Send matrix transformations to shader program
-		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
@@ -551,9 +580,9 @@ int main(){
 		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
 		//Get target location (where the target sphere collides with other objects)
-		vec3 start;
+
+		vec3 start, direction;
 		vec3_scale(start, cam->pos, 1);
-		vec3 direction;
 		vec3_scale(direction, cam->dir, 1);
 
 		float MAX_DISTANCE = 12000000;
@@ -563,7 +592,7 @@ int main(){
 		int di;
 		for (di=0; di<sphere_c; di++){
 			//dist should equal the distance from the camera to the target
-			float R = spheres[di]->r + 1; //1 == radius of targetting sphere
+			float R = spheres[di]->r + sphere->r; //1 == radius of targetting sphere
 			vec3 object = {spheres[di]->x, spheres[di]->y, spheres[di]->z};
 
 			vec3 rel_object;
@@ -604,6 +633,7 @@ int main(){
 			vec3_scale(advance, direction, dist);
 			vec3_add(targetPos, start, advance);
 			mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
+			mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 		}
 
 		//Draw the target sphere
@@ -625,7 +655,20 @@ int main(){
 			glDrawElements(GL_TRIANGLE_STRIP, spheres[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
+		//ddrop
+		for (sphere_i=0; sphere_i<droplets_c; sphere_i++){
+			// vec3 to_sphere;
+			// vec3_sub(to_sphere, cam->pos, {droplets[sphere_i].x, droplets[sphere_i].y, droplets[sphere_i].z})
 
+			//Update local matrix location and sphere color
+			sphere_local_matrix(droplets[sphere_i], sphere_local);
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)sphere_local);
+			// glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+			glUniform4fv(sphereColor, 1, droplets[sphere_i]->rgba);
+			//Bind Sphere VAO
+			glBindVertexArray(droplets[sphere_i]->VAO);
+			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
+		}
 
 		//Unbind VAO
 		glBindVertexArray(0);
@@ -665,31 +708,7 @@ int main(){
 			}
 		}
 
-
-
-		// int i;
-		// for (i=0; i<6; i++){
-		// 	mat4x4_translate(crateModel, tiles[i*2], tiles[i*2+1], 0);
-		// 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		// 	glDrawArrays(GL_TRIANGLES, 0, 6);
-		// }
-
-
-		//Draw origin crate
-		// mat4x4_translate_in_place(crateModel, -x, y, -z);
-		// glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		// glDrawArrays(GL_TRIANGLES, 0, 36);
-
 		glBindVertexArray(0);
-		// */
-		// ----------------Draw Objects --------------------//
-
-		// glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		// glBindVertexArray(VAO_right);
-		// glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-
-		// glBindVertexArray(0);
-
 
 		//GLFW Update Ticks
 		glfwPollEvents();
@@ -722,3 +741,41 @@ void framebuffer_size_callback (GLFWwindow* win, int width, int height){
 	WIN_WIDTH = width;
 	WIN_HEIGHT = height;
 }
+
+
+void updateDroplets(Sphere *droplets[], int droplets_c){
+	Sphere *o1, *o2;
+	int i1, i2;
+	for (i1=0; i1<droplets_c; i1++){
+		o1 = droplets[i1];
+		for (i2=i1+1; i2<droplets_c; i2++){
+			o2 = droplets[i2];
+			double R = o1->r + o2->r;
+			vec3 p1 = {o1->x, o1->y, o1->z};
+			vec3 p2 = {o2->x, o2->y, o2->z};
+			vec3 ray;
+			vec3_sub(ray, p1, p2);
+
+			double d = vec3_len(ray);
+			if (d > R) continue;
+
+			// force < 0 equals attraction
+			double force = (d/R);
+			double xfunc = 3*M_PI/4 * pow(force, 2);
+			force = 1.5 * pow(cosf(xfunc), 2) - 0.75;
+
+			//Adjust force to appropriate units
+			double scale = 0.001;
+			//Normalize direction vector from p1 to p2
+			vec3_scale(ray, ray, force*scale/d);
+
+			vec3_add(o1->vel, o1->vel, ray);
+			vec3_sub(o2->vel, o2->vel, ray);
+
+		}
+		o1->x += o1->vel[0];
+		o1->y += o1->vel[1];
+		o1->z += o1->vel[2];
+	}
+
+}//updateDroplets

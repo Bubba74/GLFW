@@ -10,6 +10,7 @@
 
 typedef struct {
   double x, y, z, r;
+  vec3 vel;
 
   vec4 rgba;
 

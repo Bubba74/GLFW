@@ -24,6 +24,7 @@ float sphere__norm (float value){
   if (value > 1) return 1;
   return value;
 }//sphere__norm
+
 void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
   //Load an xyz point into the vertex array based off of lon/lat coordinates
   lat = M_PI * (lat / 180.0f);
@@ -38,6 +39,7 @@ void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
   obj->vertices[(*index)++] = y;
   obj->vertices[(*index)++] = z;
 }//sphere__add_point
+
 void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count) {
   //Check conditions
   if (obj == NULL){
