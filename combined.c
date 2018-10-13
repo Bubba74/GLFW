@@ -453,7 +453,9 @@ int main(){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Update water graphics
-		updateDroplets(droplets, droplets_c);
+		int asd = 0;
+		for (asd=0; asd<5; asd++)
+			 updateDroplets(droplets, droplets_c);
 
 		// ------------------ Process Input --------------------- //
 		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
@@ -761,11 +763,21 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 
 			// force < 0 equals attraction
 			double force = (d/R);
-			double xfunc = 3*M_PI/4 * pow(force, 2);
-			force = 1.5 * pow(cosf(xfunc), 2) - 0.75;
+
+			int funcID = 1;
+			double xfuncs[] = {
+				3*M_PI/4 * pow(force,2),
+				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2)
+			};
+			double forces[] = {
+				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.75,
+				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3
+			};
+
+			force = forces[funcID];
 
 			//Adjust force to appropriate units
-			double scale = 0.001;
+			double scale = 0.00006;
 			//Normalize direction vector from p1 to p2
 			vec3_scale(ray, ray, force*scale/d);
 
