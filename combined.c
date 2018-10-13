@@ -364,34 +364,36 @@ int main(){
 
 	//Create and render a sphere
 	int lats = 10, lons = 10;
+
 	Sphere *sphere = sphere_create(0, 0, 0, 1);
 	sphere_rgba(sphere, 1, 0, 0, 1);
 	sphere_init_model(sphere, lats, lons);
+	sphere_attach_vao(sphere);
 
-	unsigned int sphereVAO;
-	glGenVertexArrays(1, &sphereVAO);
-	glBindVertexArray(sphereVAO);
+	float xyzr[] = {
+		3,    1, 0,    1,
+		3, 2.75, 0, 0.75
+	};
 
-	unsigned int sphereVBO;
-	glGenBuffers(1, &sphereVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
-	glBufferData(GL_ARRAY_BUFFER, 3*sphere->vertexCount*sizeof(float), sphere->vertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
-	glEnableVertexAttribArray(0);
+	int sphere_c = 2;
+	Sphere *spheres[sphere_c];
 
-	int indexCount;
-	int *indices = sphere_ebo_indices(&indexCount, lats, lons);
-	unsigned int sphereEBO;
-	glGenBuffers(1, &sphereEBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount*sizeof(int), indices, GL_STATIC_DRAW);
+	int i;
+	for (i=0; i<sphere_c; i++){
+		spheres[i] = sphere_create(xyzr[4*i], xyzr[4*i+1], xyzr[4*i+2], xyzr[4*i+3]);
+		sphere_rgba(spheres[i], 1, 1, 1, 1);
+		sphere_init_model(spheres[i], lats, lons);
+		sphere_attach_vao(spheres[i]);
+
+	}
 
 	Shader *sphereShader = getShaderObject();
 	sphereShader->loadShader(sphereShader, "res/sphere.vs", "res/sphere.fs");
 	unsigned int sphereLocalLoc = glGetUniformLocation(sphereShader->ID, "local"),
 							 sphereModelLoc = glGetUniformLocation(sphereShader->ID, "model"),
 							 sphereViewLoc  = glGetUniformLocation(sphereShader->ID, "view"),
-							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader->ID, "perspective");
+							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader->ID, "perspective"),
+							 sphereColor		= glGetUniformLocation(sphereShader->ID, "rgba");
 
 
 	//Enable transparency and cam-z calculations
@@ -399,6 +401,12 @@ int main(){
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_DEPTH_TEST);
+
+	//Targetting
+	vec3 targetPos = {10, 0, 0};
+	mat4x4 targetTransform;
+	mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
+
 
 	//Variables
 	float x = 0, y = 0, z = 0;
@@ -537,15 +545,85 @@ int main(){
 		//Render Sphere
 		sphereShader->use(sphereShader);
 		//Send matrix transformations to shader program
-		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
 		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
 		glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 
-		//Bind Sphere VAO
-		glBindVertexArray(sphereVAO);
-		// glDrawArrays(GL_POINTS, 0, sphere->vertexCount);
-		glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+		//Get target location (where the target sphere collides with other objects)
+		vec3 start;
+		vec3_scale(start, cam->pos, 1);
+		vec3 direction;
+		vec3_scale(direction, cam->dir, 1);
+
+		float MAX_DISTANCE = 12000000;
+		float dist = MAX_DISTANCE;
+		int reset = 0;
+
+		int di;
+		for (di=0; di<sphere_c; di++){
+			//dist should equal the distance from the camera to the target
+			float R = spheres[di]->r + 1; //1 == radius of targetting sphere
+			vec3 object = {spheres[di]->x, spheres[di]->y, spheres[di]->z};
+
+			vec3 rel_object;
+			vec3_sub(rel_object, object, start);
+
+			//Now we have the vector from the camera to the object (rel_object)
+			//	and the vector of the camera direction (direction);
+
+			// 		vx								 vy									vz
+			float dx = direction[0], dy = direction[1], dz = direction[2];
+			float ox = rel_object[0], oy = rel_object[1], oz = rel_object[2];
+
+/*	------------Solution for the above math---------------
+					// Find the distance between the object (ox,oy,oz) and a moving camera
+			(t*dx-ox)^2 + (t*dy-oy)^2 + (t*dz-oz)^2 = R^2
+					// Expand the polynomial
+			(t2*dx2 - 2*t*dx*ox + ox2) + (t2*dy2 - 2*t*dy*oy + oy2) + (t2*dz2 - 2*t*dz*oz + oz2) == R2
+					// Order by terms of t
+			t2*(dx2 + dy2 + dz2) - 2*t*(dxox + dyoy + dz*oz) + (ox2 + oy2 + oz2 - R2) = 0
+					// Apply the quadratic equation x = -b += sqrt(pow(b,2) - 4*a*c)/(2*a)
+
+*/
+
+			float a = pow(dx,2) + pow(dy,2) + pow(dz,2);
+			float b = -2 * (dx*ox + dy*oy + dz*oz);
+			float c = pow(ox,2) + pow(oy,2) + pow(oz,2) - pow(R,2);
+
+			float x = (-b - sqrt(pow(b,2) - 4*a*c))/(2*a);
+			// x1 = -b + sqrt(pow(b,2) - 4*a*c)/(2*a);
+
+			if (x > 0 && x < dist)
+				dist = x;
+
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_C) && dist < MAX_DISTANCE){
+			vec3 advance;
+			vec3_scale(advance, direction, dist);
+			vec3_add(targetPos, start, advance);
+			mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
+		}
+
+		//Draw the target sphere
+		glUniform4fv(sphereColor, 1, sphere->rgba);
+		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)targetTransform);
+		glBindVertexArray(sphere->VAO);
+		glDrawElements(GL_TRIANGLE_STRIP, sphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
+
+		mat4x4 sphere_local;
+		int sphere_i;
+		for (sphere_i=0; sphere_i<sphere_c; sphere_i++){
+			//Update local matrix location and sphere color
+			sphere_local_matrix(spheres[sphere_i], sphere_local);
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)sphere_local);
+			// glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+			glUniform4fv(sphereColor, 1, spheres[sphere_i]->rgba);
+			//Bind Sphere VAO
+			glBindVertexArray(spheres[sphere_i]->VAO);
+			glDrawElements(GL_TRIANGLE_STRIP, spheres[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
+		}
 
 
 

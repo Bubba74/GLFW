@@ -4,13 +4,14 @@ out vec4 FragColor;
 
 in float y;
 
+uniform vec4 rgba;
+
 void main(){
-//  float gray = (y+1)/2;
 
-  FragColor = vec4(0, 0, 1, 1);
+  FragColor = rgba;
 
-  float low = -0.3, high = -0.2;
+//  float low = -0.3, high = -0.2;
+//  if (low < y && y < high)
+//  FragColor = vec4(1, 0, 0, 1);
 
-  if (low < y && y < high)
-    FragColor = vec4(1, 0, 0, 1);
 }

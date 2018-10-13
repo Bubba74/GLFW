@@ -7,7 +7,7 @@ Sphere *sphere_create(double x, double y, double z, double radius) {
   sphere->y = y;
   sphere->z = z;
 
-  sphere->radius = radius;
+  sphere->r = radius;
 
   return sphere;
 }//sphere_create
@@ -107,3 +107,35 @@ int *sphere_ebo_indices(int *indicesCount, unsigned int lat_count, unsigned int 
 
   return indices;
 }//sphere_ebo_indices
+
+void sphere_attach_vao(Sphere *obj){
+
+  //Create/bind sphere VAO
+  glGenVertexArrays(1, &obj->VAO);
+  glBindVertexArray(obj->VAO);
+
+  //Create/bind and buffer VBO
+  unsigned int VBO;
+  glGenBuffers(1, &VBO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, 3*obj->vertexCount*sizeof(float), obj->vertices, GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
+  glEnableVertexAttribArray(0);
+
+  int *indices = sphere_ebo_indices(&obj->ebo_indices_c, obj->lats, obj->lons);
+
+  unsigned int EBO;
+  glGenBuffers(1, &EBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj->ebo_indices_c*sizeof(int), indices, GL_STATIC_DRAW);
+
+  //Unbind sphere VAO
+  glBindVertexArray(0);
+}//sphere_attach_vao
+
+void sphere_local_matrix(Sphere *obj, mat4x4 local){
+  mat4x4_identity(local);
+  float r = obj->r;
+  mat4x4_translate_in_place(local, obj->x, obj->y, obj->z);
+  mat4x4_scale_aniso(local, local, r, r, r);
+}//sphere_get_local_matrix
