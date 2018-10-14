@@ -36,7 +36,7 @@ void framebuffer_size_callback (GLFWwindow*, int, int);
 void window_pos_callback (GLFWwindow*, int, int);
 
 void processInput (GLFWwindow*);
-void updateDroplets(Sphere *droplets[], int droplets_c);
+void updateDroplets(Sphere *droplets[], int droplets_c, vec3 cam);
 void renderGraph (Shader *, Graph *);
 
 float c_t = 512/512.0f; //c_t
@@ -398,8 +398,8 @@ int main(){
 	sphere_attach_vao(sphere);
 
 	float xyzr[] = {
-		3,    10, 10,    10,
-		3, 		25, 10, 	 7.5
+		3,    10, 30,    10,
+		3, 		25, 30, 	 7.5
 	};
 
 	int sphere_c = 2;
@@ -417,8 +417,8 @@ int main(){
 	srand(SEED);
 
 
-	double cx = 30, cy = 10, cz = 5, cr = 6;
-	int droplets_c = 100;
+	double cx = 30, cy = 10, cz = 5, cr = 10;
+	int droplets_c = 50;
 	Sphere *droplets[droplets_c];
 
 	int dc;
@@ -543,15 +543,15 @@ int main(){
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
 		//Enable transparency and cam-z calculations
-		// glEnable(GL_BLEND);
-		// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		// glEnable(GL_DEPTH_TEST);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_DEPTH_TEST);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Update water graphics
 		int asd = 0;
 		for (asd=0; asd<5; asd++)
-			 updateDroplets(droplets, droplets_c);
+			 updateDroplets(droplets, droplets_c, cam->pos);
 
 		//Move the paddle to the right position
 		vec3 rel_dir;
@@ -886,7 +886,7 @@ void framebuffer_size_callback (GLFWwindow* win, int width, int height){
 }
 
 
-void updateDroplets(Sphere *droplets[], int droplets_c){
+void updateDroplets(Sphere *droplets[], int droplets_c, vec3 cam){
 	Sphere *o1, *o2;
 	int i1, i2;
 	for (i1=0; i1<droplets_c; i1++){
@@ -911,7 +911,7 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2),
 				force
 			};
-			double E = 0.01, sigma = 4, rm = 1.2;
+			double E = 0.01, sigma = 4, rm = 1.6;
 			double forces[] = {
 				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.75,
 				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3,
@@ -929,6 +929,44 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 			vec3_sub(o2->vel, o2->vel, ray);
 
 		}
+		do { //Be nudged by cameraUp
+
+			double R = o1->r;
+			vec3 p1 = {o1->x, o1->y, o1->z};
+			vec3 p2 = {cam[0], cam[1], cam[2]};
+			vec3 ray;
+			vec3_sub(ray, p1, p2);
+
+			double d = vec3_len(ray);
+			if (d > 9*R) break;
+
+			// force < 0 equals attraction
+			double force = (d/R);
+
+			int funcID = 2;
+			double xfuncs[] = {
+				3*M_PI/4 * pow(force,2),
+				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2),
+				force
+			};
+			double E = 0.01, sigma = 4, rm = 1.2;
+			double forces[] = {
+				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.75,
+				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3,
+				E * ( pow(rm/xfuncs[funcID], 12) - 2*pow(rm/xfuncs[funcID],6) )
+			};
+
+			force = forces[funcID];
+
+			//Adjust force to appropriate units
+			double scale = 0.0001;
+			//Normalize direction vector from p1 to p2
+			vec3_scale(ray, ray, force*scale/d);
+
+			vec3_add(o1->vel, o1->vel, ray);
+		} while (0);
+
+
 		o1->x += o1->vel[0];
 		o1->y += o1->vel[1];
 		o1->z += o1->vel[2];
