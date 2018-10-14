@@ -8,8 +8,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define GRAPH_MIN 2000000000;
-#define GRAPH_MAX -2000000000;
+#define GRAPH_MIN -2000000000;
+#define GRAPH_MAX 2000000000;
+
+GLFWwindow *window;
 
 typedef struct graph_object {
 
@@ -43,7 +45,8 @@ Graph *graph_create(vec3 top_left, float width, float height, int length){
   {
     int i=0;
     for (i=0; i<length; i++)
-      graph->data[i] = 0;
+      graph->data[i] = 0,
+      graph->rel_data[i] = 0;
   }
 
   graph->min = GRAPH_MAX;
@@ -51,6 +54,15 @@ Graph *graph_create(vec3 top_left, float width, float height, int length){
   graph->recalculate_bounds = 1;
 
   glGenVertexArrays(1, &graph->vao);
+  glBindVertexArray(graph->vao);
+
+  glGenBuffers(1, &graph->vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, graph->vbo);
+  // glBufferData(GL_ARRAY_BUFFER, graph->len*sizeof(float), graph->rel_data, GL_STATIC_DRAW);
+  // float fake_data[] = {0, 100, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, .8, .9, .9, .8, .7, .6, .5, .4, .3, .2, .1, 0};
+  glBufferData(GL_ARRAY_BUFFER, graph->len*sizeof(float), graph->rel_data, GL_DYNAMIC_DRAW);
+
+  glBindVertexArray(0);
 
   return graph;
 
@@ -75,35 +87,38 @@ void graph_point(Graph *graph, float value){
   if (graph->index == graph->len)
     graph->index = 0;
 
-}//graph_point
+  // printf("Val: %.2f\n", value);
 
+}//graph_point
+int print = 0;
 void graph_render(Graph *graph){
   //Assume that x,y,z and w,h are already written to the shader's uniforms.
 
-  if (graph->recalculate_bounds){
-    graph->min = GRAPH_MAX;
-    graph->max = GRAPH_MIN;
-    int i;
-    for (i=0; i<graph->len; i++)
-      if (graph->data[i] < graph->min)
-        graph->min = graph->data[i];
-      else if (graph->data[i] > graph->max)
-        graph->max = graph->data[i];
-
-    for (i=0; i<graph->len; i++)
-      graph->rel_data[i] = (graph->data[i]-graph->min)/(graph->max-graph->min);
-
-    graph->recalculate_bounds = 0;
+  graph->min = GRAPH_MAX;
+  graph->max = GRAPH_MIN;
+  int i;
+  for (i=0; i<graph->len; i++){
+    if (graph->data[i] < graph->min)
+      graph->min = graph->data[i];
+    else if (graph->data[i] > graph->max)
+      graph->max = graph->data[i];
   }
+  for (i=0; i<graph->len; i++)
+    graph->rel_data[i] = (graph->data[i]-graph->min)/(graph->max-graph->min);
+
+  graph->recalculate_bounds = 0;
+
 
   glBindVertexArray(graph->vao);
 
-  glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, sizeof(float), graph->rel_data);
+  glBindBuffer(GL_ARRAY_BUFFER, graph->vbo);
+  glBufferData(GL_ARRAY_BUFFER, graph->len*sizeof(float), graph->rel_data, GL_DYNAMIC_DRAW);
+  glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
   glEnableVertexAttribArray(0);
 
   glDrawArrays(GL_LINE_STRIP, 0, graph->len);
 
-  glBindVertexArray(graph->vao);
+  glBindVertexArray(0);
 
 }//graph_render
 

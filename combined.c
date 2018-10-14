@@ -249,7 +249,7 @@ int main(){
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// window init
-	GLFWwindow *window = glfwCreateWindow (WIN_WIDTH, WIN_HEIGHT, "OpenGL Window\n", NULL, NULL);
+	window = glfwCreateWindow (WIN_WIDTH, WIN_HEIGHT, "OpenGL Window\n", NULL, NULL);
 	if (window == NULL){
 		printf("Failed to create OpenGL window!\n");
 		glfwTerminate();
@@ -398,8 +398,8 @@ int main(){
 	sphere_attach_vao(sphere);
 
 	float xyzr[] = {
-		3,    10, 0,    10,
-		3, 		25, 0, 	 7.5
+		3,    10, 10,    10,
+		3, 		25, 10, 	 7.5
 	};
 
 	int sphere_c = 2;
@@ -417,7 +417,7 @@ int main(){
 	srand(SEED);
 
 
-	double cx = 30, cy = 10, cz = 5, cr = 3;
+	double cx = 30, cy = 10, cz = 5, cr = 6;
 	int droplets_c = 100;
 	Sphere *droplets[droplets_c];
 
@@ -444,13 +444,6 @@ int main(){
 							 sphereViewLoc  = glGetUniformLocation(sphereShader->ID, "view"),
 							 spherePerspectiveLoc	= glGetUniformLocation(sphereShader->ID, "perspective"),
 							 sphereColor		= glGetUniformLocation(sphereShader->ID, "rgba");
-
-
-	//Enable transparency and cam-z calculations
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glEnable(GL_DEPTH_TEST);
 
 	//Targetting
 	vec3 targetPos = {10, 0, 0};
@@ -524,22 +517,24 @@ int main(){
 	Graph *graph;
 	Shader *graphShader;
 	{ //Graph
-		vec3 top_left = {-1, -1, -1};
-		graph = graph_create(top_left, 2, 0.1, 1920);
+		vec3 top_left = {-1, -1, 0};
+		graph = graph_create(top_left, 2.0, 0.2, 512);
 
 		//Shader
-		// graphShader = getShaderObject();
-		// loadShader(graphShader, "res/graph.vs", "res/graph.fs");
-		//
-		//
-		// setInt(graphShader, "length", graph->len);
-		//
-		// setFloat(graphShader, "xpos", graph->pos[0]);
-		// setFloat(graphShader, "ypos", graph->pos[1]);
-		// setFloat(graphShader, "zpos", graph->pos[2]);
-		//
-		// setFloat(graphShader, "width", graph->width);
-		// setFloat(graphShader, "height", graph->height);
+		graphShader = getShaderObject();
+		loadShader(graphShader, "res/graph.vs", "res/graph.fs");
+		glUseProgram(graphShader->ID);
+
+		setInt(graphShader, "length", graph->len);
+
+		setFloat(graphShader, "coordx", graph->pos[0]);
+		setFloat(graphShader, "coordy", graph->pos[1]);
+		setFloat(graphShader, "coordz", graph->pos[2]);
+
+		setFloat(graphShader, "width", graph->width);
+		setFloat(graphShader, "height", graph->height);
+
+		// printf("%d %.1f %.1f %.1f %.1f %.1f\n", graph->len, graph->pos[0], graph->pos[1], graph->pos[2], graph->width, graph->height);
 
 	}
 
@@ -547,6 +542,10 @@ int main(){
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
+		//Enable transparency and cam-z calculations
+		// glEnable(GL_BLEND);
+		// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// glEnable(GL_DEPTH_TEST);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Update water graphics
@@ -777,6 +776,7 @@ int main(){
 			//Bind Sphere VAO
 			glBindVertexArray(spheres[sphere_i]->VAO);
 			glDrawElements(GL_TRIANGLE_STRIP, spheres[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_LINE_STRIP, spheres[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
 		//ddrop
@@ -809,9 +809,6 @@ int main(){
 
 		//Unbind VAO
 		glBindVertexArray(0);
-
-		//Render the graph
-		// renderGraph(graphShader, graph);
 
 		// Bind Crate Shader Program
 		glUseProgram(shader->ID);
@@ -847,6 +844,12 @@ int main(){
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 			}
 		}
+
+
+		//Render the graph
+		glDisable(GL_DEPTH_TEST);
+		renderGraph(graphShader, graph);
+		glEnable(GL_DEPTH_TEST);
 
 		glBindVertexArray(0);
 
@@ -897,19 +900,22 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 			vec3_sub(ray, p1, p2);
 
 			double d = vec3_len(ray);
-			if (d > R) continue;
+			if (d > 9*R) continue;
 
 			// force < 0 equals attraction
 			double force = (d/R);
 
-			int funcID = 1;
+			int funcID = 2;
 			double xfuncs[] = {
 				3*M_PI/4 * pow(force,2),
-				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2)
+				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2),
+				force
 			};
+			double E = 0.01, sigma = 4, rm = 1.2;
 			double forces[] = {
 				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.75,
-				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3
+				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3,
+				E * ( pow(rm/xfuncs[funcID], 12) - 2*pow(rm/xfuncs[funcID],6) )
 			};
 
 			force = forces[funcID];
@@ -977,5 +983,6 @@ void updatePingBall(Sphere *ball, Object paddle){
 
 void renderGraph(Shader *shader, Graph *graph){
 	glUseProgram(shader->ID);
+	setInt(shader, "index", graph->index);
 	graph_render(graph);
 }//renderGraph
