@@ -22,6 +22,9 @@ int WIN_Y = 0;
 int WIN_WIDTH = 1920;
 int WIN_HEIGHT = 1080;
 
+double minf(double a, double b){
+	return a<b?a:b;
+}//minf
 
 unsigned int loadTexture(char *);
 
@@ -43,6 +46,26 @@ struct frame {
 	float x, y, z;
 	float width, height;
 };
+
+typedef struct point {
+	float x, y, z;
+} P3;
+
+typedef struct rotation3d {
+	float pitch, roll, yaw;
+} R3;
+
+typedef struct objectPipeline {
+	//3dim coordinate
+	vec3 pt;
+	R3 rt;
+	unsigned int vao;
+	unsigned int vbo, vbo_c;
+	unsigned int ebo, ebo_c;
+} Object;
+
+void updatePingBall(Sphere *ball, Object paddle);
+
 
 #define side1 0
 #define side2 8
@@ -445,6 +468,53 @@ int main(){
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
 
+	Object paddle;
+	{ //Paddle
+		float points[3*2*10];
+		int points_i = 0;
+		for (points_i=0; points_i<20; points_i++){
+			points[3*points_i] = cosf(points_i * 2*M_PI/10);
+			points[3*points_i+1] = (points_i<10?1:-1);
+			points[3*points_i+2] = sinf(points_i * 2*M_PI/10);
+		}
+
+		int paddle_ebo[2 *3*(10-2)  +  11*2];
+		int paddle_ebo_i;
+		for (paddle_ebo_i=0; paddle_ebo_i<10-2; paddle_ebo_i++){
+			paddle_ebo[3*paddle_ebo_i  ] = 0;
+			paddle_ebo[3*paddle_ebo_i+1] = paddle_ebo_i+1;
+			paddle_ebo[3*paddle_ebo_i+2] = paddle_ebo_i+2;
+		}
+		for (paddle_ebo_i=0; paddle_ebo_i<10-2; paddle_ebo_i++){
+			paddle_ebo[24+3*paddle_ebo_i  ] = 10;
+			paddle_ebo[24+3*paddle_ebo_i+1] = 10+paddle_ebo_i+1;
+			paddle_ebo[24+3*paddle_ebo_i+2] = 10+paddle_ebo_i+2;
+		}
+		for (paddle_ebo_i=0; paddle_ebo_i<=10; paddle_ebo_i++){
+			paddle_ebo[48+2*paddle_ebo_i] = paddle_ebo_i%10;
+			paddle_ebo[48+2*paddle_ebo_i+1] = 10+paddle_ebo_i%10;
+		}
+
+		vec3 paddle_start = {0, -5, 0};
+		vec3_scale(paddle.pt, paddle_start, 1);
+
+		glGenVertexArrays(1, &paddle.vao);
+		glBindVertexArray(paddle.vao);
+
+		paddle.vbo_c = 3*20;
+		glGenBuffers(1, &paddle.vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, paddle.vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0 );
+		glEnableVertexAttribArray(0);
+
+		paddle.ebo_c = 2*3*(10-2)  +  11*2;
+		glGenBuffers(1, &paddle.ebo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, paddle.ebo);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(paddle_ebo), paddle_ebo, GL_STATIC_DRAW);
+
+		glBindVertexArray(0);
+	}
 
 	//wstart
 	glfwSetTime(0);
@@ -457,73 +527,92 @@ int main(){
 		for (asd=0; asd<5; asd++)
 			 updateDroplets(droplets, droplets_c);
 
-		// ------------------ Process Input --------------------- //
-		if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
-		if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
+		//Move the paddle to the right position
+		vec3 rel_dir;
+		vec3_scale(rel_dir, cam->dir, 10);
+		vec3_add(paddle.pt, cam->pos, rel_dir);
+		paddle.rt.yaw = cam->yaw + M_PI/2;
+		paddle.rt.pitch = cam->pitch + M_PI/12;
 
-		if (glfwGetKey(window, GLFW_KEY_UP)){
-			x += cosf(-theta)/20;
-			y += sinf(-theta)/20;
-		}
-		if (glfwGetKey(window, GLFW_KEY_DOWN)){
-			x -= cosf(-theta)/20;
-			y -= sinf(-theta)/20;
-		}
-		if (glfwGetKey(window, GLFW_KEY_ENTER)){
-			z += 0.1f;
-		}
-		if (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)){
-			z -= 0.1f;
+		if (glfwGetKey(window, GLFW_KEY_B)){
+			vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
+			vec3_scale(targetPos, paddle.pt, 1);
+			targetPos[1] += 2;
+
+			sphere->x = targetPos[0], sphere->y = targetPos[1], sphere->z = targetPos[2];
 		}
 
-		int keyR = glfwGetKey(window, GLFW_KEY_R);
-		int keyW = glfwGetKey(window, GLFW_KEY_W);
-		int keyA = glfwGetKey(window, GLFW_KEY_A);
-		int keyS = glfwGetKey(window, GLFW_KEY_S);
-		int keyD = glfwGetKey(window, GLFW_KEY_D);
-		int keyLeftShift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
-		int keySpace = glfwGetKey(window, GLFW_KEY_SPACE);
+		updatePingBall(sphere, paddle);
+		targetPos[0] = sphere->x, targetPos[1] = sphere->y, targetPos[2] = sphere->z;
+		mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
+		mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 
-		//Scale direction vector to appropriate speed
-		double speedForward = 0.08;
-		double speedStrafe = 0.07;
-		double speedRaise = 0.1;		//Positive for up
 
-		if (keyR){
-			speedForward *= 2;
-			speedStrafe *= 2;
-			speedRaise *= 2;
+		{  // ------------------ Process Input --------------------- //
+			if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
+			if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
+
+			if (glfwGetKey(window, GLFW_KEY_UP)){
+				x += cosf(-theta)/20;
+				y += sinf(-theta)/20;
+			}
+			if (glfwGetKey(window, GLFW_KEY_DOWN)){
+				x -= cosf(-theta)/20;
+				y -= sinf(-theta)/20;
+			}
+			if (glfwGetKey(window, GLFW_KEY_ENTER)){
+				z += 0.1f;
+			}
+			if (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)){
+				z -= 0.1f;
+			}
+
+			int keyR = glfwGetKey(window, GLFW_KEY_R);
+			int keyW = glfwGetKey(window, GLFW_KEY_W);
+			int keyA = glfwGetKey(window, GLFW_KEY_A);
+			int keyS = glfwGetKey(window, GLFW_KEY_S);
+			int keyD = glfwGetKey(window, GLFW_KEY_D);
+			int keyLeftShift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
+			int keySpace = glfwGetKey(window, GLFW_KEY_SPACE);
+
+			//Scale direction vector to appropriate speed
+			double speedForward = 0.08;
+			double speedStrafe = 0.07;
+			double speedRaise = 0.1;		//Positive for up
+
+			if (keyR){
+				speedForward *= 2;
+				speedStrafe *= 2;
+				speedRaise *= 2;
+			}
+
+			if (!(keyW && keyS))
+				if (keyW) cameraForward(cam, speedForward);
+				else if (keyS) cameraForward(cam, -speedForward);
+
+			if (!(keyA && keyD))
+				if (keyA) cameraStrafe(cam, -speedStrafe);
+				else if (keyD) cameraStrafe(cam, speedStrafe);
+
+			if (!(keySpace && keyLeftShift))
+				if (keySpace) cameraUp(cam, speedRaise);
+				else if (keyLeftShift) cameraUp(cam, -speedRaise);
+
+
+			glfwGetCursorPos(window, &camx, &camy);
 		}
-
-		if (!(keyW && keyS))
-			if (keyW) cameraForward(cam, speedForward);
-			else if (keyS) cameraForward(cam, -speedForward);
-
-		if (!(keyA && keyD))
-			if (keyA) cameraStrafe(cam, -speedStrafe);
-			else if (keyD) cameraStrafe(cam, speedStrafe);
-
-		if (!(keySpace && keyLeftShift))
-			if (keySpace) cameraUp(cam, speedRaise);
-			else if (keyLeftShift) cameraUp(cam, -speedRaise);
-
-
-		glfwGetCursorPos(window, &camx, &camy);
-		cameraRotateByMouse(cam, camx-cam_prevx, camy-cam_prevy);
-
-		cameraGenerateViewMatrix(cam);
 
 		//------------- Calculate Matrices --------------------- //
+		cameraRotateByMouse(cam, camx-cam_prevx, camy-cam_prevy);
+		cameraGenerateViewMatrix(cam);
 
 		mat4x4 perspective, viewTimesPerspective;
-
 
 		//Perspective
 		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 1000.0f);
 
 		//Product
 		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
-
 
 		// ------------------- Render Crate -------------------- //
 
@@ -539,14 +628,16 @@ int main(){
 
 		glUseProgram(crateShader->ID);
 
-		//Send matrix transformations to shader program
-		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-		glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+		{  //Send matrix transformations to shader program
+			glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
+			glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+			glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+		}
 
 		vec3 black = {0, 0, 0};
 		glUniform3fv(colorLoc, 1, black);
+
 		//Bind crate and face textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, crateTexture);
@@ -575,14 +666,15 @@ int main(){
 
 		//Render Sphere
 		sphereShader->use(sphereShader);
-		//Send matrix transformations to shader program
-		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
-		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+
+		{ //Send matrix transformations to shader program
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+			glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
+			glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+		}
 
 		//Get target location (where the target sphere collides with other objects)
-
 		vec3 start, direction;
 		vec3_scale(start, cam->pos, 1);
 		vec3_scale(direction, cam->dir, 1);
@@ -607,7 +699,7 @@ int main(){
 			float dx = direction[0], dy = direction[1], dz = direction[2];
 			float ox = rel_object[0], oy = rel_object[1], oz = rel_object[2];
 
-/*	------------Solution for the above math---------------
+			/*	------------Solution for the above math---------------
 					// Find the distance between the object (ox,oy,oz) and a moving camera
 			(t*dx-ox)^2 + (t*dy-oy)^2 + (t*dz-oz)^2 = R^2
 					// Expand the polynomial
@@ -616,7 +708,7 @@ int main(){
 			t2*(dx2 + dy2 + dz2) - 2*t*(dxox + dyoy + dz*oz) + (ox2 + oy2 + oz2 - R2) = 0
 					// Apply the quadratic equation x = -b += sqrt(pow(b,2) - 4*a*c)/(2*a)
 
-*/
+			*/
 
 			float a = pow(dx,2) + pow(dy,2) + pow(dz,2);
 			float b = -2 * (dx*ox + dy*oy + dz*oz);
@@ -671,6 +763,19 @@ int main(){
 			glBindVertexArray(droplets[sphere_i]->VAO);
 			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
+
+		vec4 darkGreen = {1, 1, 1, 1};
+		//Bind and render paddle
+		mat4x4 paddleLocal;
+		mat4x4_identity(paddleLocal);
+		mat4x4_translate_in_place(paddleLocal, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
+		mat4x4_rotate_Y(paddleLocal, paddleLocal, paddle.rt.yaw);
+		mat4x4_rotate_X(paddleLocal, paddleLocal, paddle.rt.pitch);
+		mat4x4_scale_aniso(paddleLocal, paddleLocal, 1, 0.15, 1);
+		glUniform4fv(sphereColor, 1, darkGreen);
+		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
+		glBindVertexArray(paddle.vao);
+		glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
 
 		//Unbind VAO
 		glBindVertexArray(0);
@@ -791,3 +896,40 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 	}
 
 }//updateDroplets
+
+void updatePingBall(Sphere *ball, Object paddle){
+
+	float dt = 1;
+
+	vec3 sphere_pos = {ball->x, ball->y, ball->z};
+
+	vec3 paddle_to_ball_pos;
+	vec3_sub(paddle_to_ball_pos, sphere_pos, paddle.pt);
+
+	vec3 rotated_vel_vector;
+	vec3_scale(rotated_vel_vector, ball->vel, 1);
+
+	do { // Check if the sphere will hit the paddle in the next Ticks
+		float x = paddle_to_ball_pos[0];
+		float y = paddle_to_ball_pos[1];
+		float z = paddle_to_ball_pos[2];
+
+		//Quick check that the ball is near the paddle
+		if (x*x + z*z > 1) break;
+		if (y < -0.1) break;
+		// if (y > abs(5*minf(0.02,ball->vel[1]))) break;
+
+		if (y < 0.15+ball->r)
+			ball->vel[1] = -abs(1.1*ball->vel[1]);
+
+	} while (0);
+
+	// if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
+	// else
+		ball->vel[1] += -0.01;
+
+	ball->x += ball->vel[0];
+	ball->y += ball->vel[1];
+	ball->z += ball->vel[2];
+
+}//updatePingBall
