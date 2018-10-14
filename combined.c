@@ -468,6 +468,7 @@ int main(){
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
 
+	// vec3 paddle
 	Object paddle;
 	{ //Paddle
 		float points[3*2*10];
@@ -897,6 +898,10 @@ void updateDroplets(Sphere *droplets[], int droplets_c){
 
 }//updateDroplets
 
+float absf(float val){
+	return val<0 ? -val: val;
+}//absf
+
 void updatePingBall(Sphere *ball, Object paddle){
 
 	float dt = 1;
@@ -906,6 +911,8 @@ void updatePingBall(Sphere *ball, Object paddle){
 	vec3 paddle_to_ball_pos;
 	vec3_sub(paddle_to_ball_pos, sphere_pos, paddle.pt);
 
+	//With a flat paddle, we only care about the vertical velocity
+		//Thus, we transform all pieces to the plane of the paddle
 	vec3 rotated_vel_vector;
 	vec3_scale(rotated_vel_vector, ball->vel, 1);
 
@@ -914,18 +921,18 @@ void updatePingBall(Sphere *ball, Object paddle){
 		float y = paddle_to_ball_pos[1];
 		float z = paddle_to_ball_pos[2];
 
-		//Quick check that the ball is near the paddle
+		//Quick check athat the ball is near the paddle
 		if (x*x + z*z > 1) break;
 		if (y < -0.1) break;
-		// if (y > abs(5*minf(0.02,ball->vel[1]))) break;
 
 		if (y < 0.15+ball->r)
-			ball->vel[1] = -abs(1.1*ball->vel[1]);
+			ball->vel[1] = absf(ball->vel[1]);
+			// ball->vel[1] = -abs(1.1*ball->vel[1]);
 
 	} while (0);
 
-	// if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
-	// else
+	if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
+	else
 		ball->vel[1] += -0.01;
 
 	ball->x += ball->vel[0];
