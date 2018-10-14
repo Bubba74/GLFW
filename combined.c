@@ -5,6 +5,7 @@
 #include <linmath.h>
 #include <camera.h>
 #include <sphere.h>
+#include <graph.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,6 +37,7 @@ void window_pos_callback (GLFWwindow*, int, int);
 
 void processInput (GLFWwindow*);
 void updateDroplets(Sphere *droplets[], int droplets_c);
+void renderGraph (Shader *, Graph *);
 
 float c_t = 512/512.0f; //c_t
 float c_b = 0/512.0f; //c_btom
@@ -58,6 +60,7 @@ typedef struct rotation3d {
 typedef struct objectPipeline {
 	//3dim coordinate
 	vec3 pt;
+	float r;
 	R3 rt;
 	unsigned int vao;
 	unsigned int vbo, vbo_c;
@@ -498,6 +501,7 @@ int main(){
 
 		vec3 paddle_start = {0, -5, 0};
 		vec3_scale(paddle.pt, paddle_start, 1);
+		paddle.r = 2;
 
 		glGenVertexArrays(1, &paddle.vao);
 		glBindVertexArray(paddle.vao);
@@ -517,6 +521,28 @@ int main(){
 		glBindVertexArray(0);
 	}
 
+	Graph *graph;
+	Shader *graphShader;
+	{ //Graph
+		vec3 top_left = {-1, -1, -1};
+		graph = graph_create(top_left, 2, 0.1, 1920);
+
+		//Shader
+		// graphShader = getShaderObject();
+		// loadShader(graphShader, "res/graph.vs", "res/graph.fs");
+		//
+		//
+		// setInt(graphShader, "length", graph->len);
+		//
+		// setFloat(graphShader, "xpos", graph->pos[0]);
+		// setFloat(graphShader, "ypos", graph->pos[1]);
+		// setFloat(graphShader, "zpos", graph->pos[2]);
+		//
+		// setFloat(graphShader, "width", graph->width);
+		// setFloat(graphShader, "height", graph->height);
+
+	}
+
 	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -534,6 +560,7 @@ int main(){
 		vec3_add(paddle.pt, cam->pos, rel_dir);
 		paddle.rt.yaw = cam->yaw + M_PI/2;
 		paddle.rt.pitch = cam->pitch + M_PI/12;
+		paddle.rt.pitch = 0;
 
 		if (glfwGetKey(window, GLFW_KEY_B)){
 			vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
@@ -547,6 +574,8 @@ int main(){
 		targetPos[0] = sphere->x, targetPos[1] = sphere->y, targetPos[2] = sphere->z;
 		mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
 		mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
+
+		graph_point(graph, targetPos[1]);
 
 
 		{  // ------------------ Process Input --------------------- //
@@ -772,7 +801,7 @@ int main(){
 		mat4x4_translate_in_place(paddleLocal, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
 		mat4x4_rotate_Y(paddleLocal, paddleLocal, paddle.rt.yaw);
 		mat4x4_rotate_X(paddleLocal, paddleLocal, paddle.rt.pitch);
-		mat4x4_scale_aniso(paddleLocal, paddleLocal, 1, 0.15, 1);
+		mat4x4_scale_aniso(paddleLocal, paddleLocal, paddle.r, 0.15, paddle.r);
 		glUniform4fv(sphereColor, 1, darkGreen);
 		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
 		glBindVertexArray(paddle.vao);
@@ -780,6 +809,9 @@ int main(){
 
 		//Unbind VAO
 		glBindVertexArray(0);
+
+		//Render the graph
+		// renderGraph(graphShader, graph);
 
 		// Bind Crate Shader Program
 		glUseProgram(shader->ID);
@@ -916,27 +948,34 @@ void updatePingBall(Sphere *ball, Object paddle){
 	vec3 rotated_vel_vector;
 	vec3_scale(rotated_vel_vector, ball->vel, 1);
 
+	if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
+	else
+		ball->vel[1] += -0.01;
+
 	do { // Check if the sphere will hit the paddle in the next Ticks
 		float x = paddle_to_ball_pos[0];
 		float y = paddle_to_ball_pos[1];
 		float z = paddle_to_ball_pos[2];
 
 		//Quick check athat the ball is near the paddle
-		if (x*x + z*z > 1) break;
+		if (x*x + z*z > paddle.r*paddle.r) break;
 		if (y < -0.1) break;
 
-		if (y < 0.15+ball->r)
+		if (y+ball->vel[1] < 0.15+ball->r){
 			ball->vel[1] = absf(ball->vel[1]);
+		}
 			// ball->vel[1] = -abs(1.1*ball->vel[1]);
 
 	} while (0);
 
-	if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
-	else
-		ball->vel[1] += -0.01;
 
 	ball->x += ball->vel[0];
 	ball->y += ball->vel[1];
 	ball->z += ball->vel[2];
 
 }//updatePingBall
+
+void renderGraph(Shader *shader, Graph *graph){
+	glUseProgram(shader->ID);
+	graph_render(graph);
+}//renderGraph
