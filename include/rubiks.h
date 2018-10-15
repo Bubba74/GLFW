@@ -142,10 +142,20 @@ void tile_rotate(tile *t, int axis, float rads){
 void tile_render(tile *t, unsigned int colorLoc){
   glBindVertexArray(t->vao);
 
+  vec4 cubeColors[6] = {
+		{1,0,0,1}, //Front
+		{0,1,0,1}, //Right
+		{1,1,1,1}, //Top
+		{0,0,0,1}, //Bottom
+		{1,1,0,1}, //Left
+		{0,1,1,1}  //Back
+	};
+
+  vec4 black = {0,0,0,1};
   int face;
   for (face=0; face<6; face++){
-    glUniform4fv(colorLoc, 1, t->faces[face]);
-    glDrawElements(GL_TRIANGLE_STRIP, t->ebo_c, GL_UNSIGNED_INT, 0);
+    glUniform4fv(colorLoc, 1, cubeColors[face]);
+    glDrawElements(GL_TRIANGLE_STRIP, 6, GL_UNSIGNED_INT, (void*)(6*face*sizeof(int))  );
   }
   glBindVertexArray(0);
 
@@ -175,9 +185,9 @@ rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
     vec4_dup(cube->faceColors[h], colors[h]);
 
   //Possible coordinates for tiles, notice 3*3*3 == 27 combos
-  float xCoords[] = {-1, 0, 1};
-  float yCoords[] = {-1, 0, 1};
-  float zCoords[] = {-1, 0, 1};
+  float xCoords[] = {-1.1, 0, 1.1};
+  float yCoords[] = {-1.1, 0, 1.1};
+  float zCoords[] = {-1.1, 0, 1.1};
 
   int i;
   for (i=0; i<27; i++){

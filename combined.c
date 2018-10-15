@@ -668,7 +668,7 @@ int main(){
 		mat4x4 perspective, viewTimesPerspective;
 
 		//Perspective
-		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 1000.0f);
+		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.01f, 1000.0f);
 
 		//Product
 		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
@@ -826,7 +826,7 @@ int main(){
 		}
 
 		//Render Rubik's cube
-		vec4 darkGreen = {1, 1, 1, 1};
+		vec4 darkGreen = {0, 1, 0.2, 1};
 		setInt(sphereShader, "damp_enabled", 0);
 		glUniform4fv(sphereColor, 1, darkGreen);
 		rubiks_render(cube, sphereShader->ID);
