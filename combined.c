@@ -460,9 +460,11 @@ int main(){
 	glfwGetCursorPos(window, &cam_prevx, &cam_prevy);
 	double camx, camy;
 
-	struct Camera *cam = cameraGetNew();
+	Camera *cam = cameraGetNew();
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
+	int rotateAroundPaddle = 1;
+	int rotateAroundPaddleLast = 0;
 
 	// vec3 paddle
 	Object paddle;
@@ -554,8 +556,9 @@ int main(){
 			 updateDroplets(droplets, droplets_c, cam->pos);
 
 		//Move the paddle to the right position
+		int dist_to_paddle = 10;
 		vec3 rel_dir;
-		vec3_scale(rel_dir, cam->dir, 10);
+		vec3_scale(rel_dir, cam->dir, dist_to_paddle);
 		vec3_add(paddle.pt, cam->pos, rel_dir);
 		paddle.rt.yaw = cam->yaw + M_PI/2;
 		paddle.rt.pitch = cam->pitch + M_PI/12;
@@ -627,12 +630,26 @@ int main(){
 				if (keySpace) cameraUp(cam, speedRaise);
 				else if (keyLeftShift) cameraUp(cam, -speedRaise);
 
+			//Toggle rotateAroundPaddle
+			int paddleKey = GLFW_KEY_M;
+			if (glfwGetKey(window, paddleKey)){
+				if (!rotateAroundPaddleLast){
+					rotateAroundPaddle = 1 - rotateAroundPaddle;
+					rotateAroundPaddleLast = 1;
+				}
+			} else {
+				rotateAroundPaddleLast = 0;
+			}
 
 			glfwGetCursorPos(window, &camx, &camy);
 		}
 
 		//------------- Calculate Matrices --------------------- //
-		cameraRotateByMouse(cam, camx-cam_prevx, camy-cam_prevy);
+		if (rotateAroundPaddle)
+			cameraRotateAroundTarget(cam, camx-cam_prevx, camy-cam_prevy, dist_to_paddle);
+		else
+			cameraRotateFromPos(cam, camx-cam_prevx, camy-cam_prevy);
+
 		cameraGenerateViewMatrix(cam);
 
 		mat4x4 perspective, viewTimesPerspective;

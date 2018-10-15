@@ -7,7 +7,7 @@
 
 #define CameraSensitivity 0.005
 
-struct Camera {
+typedef struct camera_struct {
   int updateViewMatrix;
 
   vec3 pos;
@@ -16,17 +16,19 @@ struct Camera {
   double pitch, roll, yaw;
 
   mat4x4 viewMatrix;
-};
+} Camera;
 
-void cameraForward(struct Camera *cam, double forwardMovement);
-void cameraStrafe(struct Camera *cam, double horizontalMovement);
-void cameraUp(struct Camera *cam, double verticalMovement);
+void cameraForward(Camera *cam, double forwardMovement);
+void cameraStrafe(Camera *cam, double horizontalMovement);
+void cameraUp(Camera *cam, double verticalMovement);
 
-void cameraRotateByMouse(struct Camera *cam, double deltaMouseX, double deltaMouseY);
-void cameraRotate3d(struct Camera *cam, double pitch, double roll, double yaw);
-void cameraPosition3d(struct Camera *cam, double newCameraX, double newCameraY, double newCameraZ);
+void cameraRotateAroundTarget(Camera *cam, double deltaMouseX, double deltaMouseY, int dist_to_target);
+void cameraRotateFromPos(Camera *cam, double deltaMouseX, double deltaMouseY);
 
-void cameraGenerateViewMatrix(struct Camera *cam);
-struct Camera *cameraGetNew();
+void cameraRotate3d(Camera *cam, double pitch, double roll, double yaw);
+void cameraPosition3d(Camera *cam, double newCameraX, double newCameraY, double newCameraZ);
+
+void cameraGenerateViewMatrix(Camera *cam);
+Camera *cameraGetNew();
 
 #endif
