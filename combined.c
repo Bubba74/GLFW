@@ -1024,6 +1024,11 @@ void updatePingBall(Sphere *ball, Object paddle){
 
 		if (y+ball->vel[1] < 0.15+ball->r){
 			ball->vel[1] = 0.95*absf(ball->vel[1]);
+
+			float rndX = rand()/(float)RAND_MAX-0.5,
+						rndZ = rand()/(float)RAND_MAX-0.5;
+			ball->vel[0] += rndX/1000;
+			ball->vel[2] += rndZ/1000;
 		}
 			// ball->vel[1] = -abs(1.1*ball->vel[1]);
 
