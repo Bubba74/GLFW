@@ -1011,7 +1011,7 @@ void updatePingBall(Sphere *ball, Object paddle){
 
 	if (abs(ball->vel[1])<0.01 && abs(paddle_to_ball_pos[1])<0.01+0.15+ball->r);
 	else
-		ball->vel[1] += -0.01;
+		ball->vel[1] += -0.02;
 
 	do { // Check if the sphere will hit the paddle in the next Ticks
 		float x = paddle_to_ball_pos[0];
@@ -1023,7 +1023,7 @@ void updatePingBall(Sphere *ball, Object paddle){
 		if (y < -0.1) break;
 
 		if (y+ball->vel[1] < 0.15+ball->r){
-			ball->vel[1] = absf(ball->vel[1]);
+			ball->vel[1] = 0.95*absf(ball->vel[1]);
 		}
 			// ball->vel[1] = -abs(1.1*ball->vel[1]);
 
