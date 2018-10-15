@@ -13,7 +13,7 @@ void main(){
 
   FragColor = rgba;
 
-  if (damp_enabled){
+  if (damp_enabled != 0){
     float dampenerX = (2*(x+1)-1);
     float dampenerY = (2*(y+1)-1);
     float dampZ = (2*(z+1)-1);

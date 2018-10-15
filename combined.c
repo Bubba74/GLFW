@@ -1,15 +1,16 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <linmath.h>
-#include <camera.h>
-#include <sphere.h>
-#include <graph.h>
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+
+#include <camera.h>
+#include <sphere.h>
+#include <graph.h>
+#include <rubiks.h>
 
 #include "Shader.h"
 
@@ -540,6 +541,18 @@ int main(){
 
 	}
 
+	//Create rubik's cube
+	vec3 pos = {0, 10, 0};
+	vec4 cubeColors[6] = {
+		{1,0,0,1}, //Front
+		{0,1,0,1}, //Right
+		{1,1,1,1}, //Top
+		{0,0,0,1}, //Bottom
+		{1,1,0,1}, //Left
+		{0,1,1,1}  //Back
+	};
+	rubiks *cube = rubiks_create(pos, cubeColors);
+
 	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -710,16 +723,6 @@ int main(){
 			glDrawElements(GL_TRIANGLES, 48, GL_UNSIGNED_INT, 0);
 		}
 
-		//Render Sphere
-		sphereShader->use(sphereShader);
-
-		{ //Send matrix transformations to shader program
-			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
-			glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-			glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
-		}
-
 		//Get target location (where the target sphere collides with other objects)
 		vec3 start, direction;
 		vec3_scale(start, cam->pos, 1);
@@ -776,6 +779,17 @@ int main(){
 			mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 		}
 
+		//Render Sphere
+		sphereShader->use(sphereShader);
+
+		{ //Send matrix transformations to shader program
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+			glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
+			glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+			setInt(sphereShader, "damp_enabled", 1);
+		}
+
 		//Draw the target sphere
 		glUniform4fv(sphereColor, 1, sphere->rgba);
 		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)targetTransform);
@@ -811,7 +825,14 @@ int main(){
 			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
+		//Render Rubik's cube
 		vec4 darkGreen = {1, 1, 1, 1};
+		setInt(sphereShader, "damp_enabled", 0);
+		glUniform4fv(sphereColor, 1, darkGreen);
+		rubiks_render(cube, sphereShader->ID);
+		setInt(sphereShader, "damp_enabled", 1);
+
+
 		//Bind and render paddle
 		mat4x4 paddleLocal;
 		mat4x4_identity(paddleLocal);
@@ -821,6 +842,7 @@ int main(){
 		mat4x4_scale_aniso(paddleLocal, paddleLocal, paddle.r, 0.15, paddle.r);
 		glUniform4fv(sphereColor, 1, darkGreen);
 		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
+		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
 		glBindVertexArray(paddle.vao);
 		glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
 
