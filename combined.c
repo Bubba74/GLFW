@@ -79,7 +79,6 @@ struct crate_data {
 	vec3 pos;
 	float theta;
 };
-
 struct gnd_data {
 	Shader *shader;
 	unsigned int texture;
@@ -89,6 +88,13 @@ struct gnd_data {
 
 	vec3 pos;
 };
+struct crosshair_data {
+	vec3 pos;
+	vec3 target;
+	unsigned int enabled;
+	unsigned int vao;
+};
+
 
 struct program_data {
 	GLFWwindow *window;
@@ -97,6 +103,7 @@ struct program_data {
 
 	struct crate_data *crate;
 	struct gnd_data *gnd;
+	struct crosshair_data *cross;
 };
 
 
@@ -241,6 +248,17 @@ int main(){
 
 	loadGnd();
 	loadCrate();
+
+	//------------ Cross hair ----------------//
+	prog->cross = malloc(sizeof(struct crosshair_data));
+	prog->cross->enabled = 0;
+	glGenVertexArrays(1, &prog->cross->vao);
+	glBindVertexArray(prog->cross->vao);
+	unsigned int cross_vbo;
+	glGenBuffers(1, &cross_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, cross_vbo);
+	//----------------------------------------//
+
 
 
 	unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
@@ -682,20 +700,33 @@ int main(){
 		}
 
 		// --------------------------Render Rubik's cube--------------------------//
-		int piece, face;
+		int face, tile = -1;
 		double distance_to_rubiks;
 
-		if (!prog->rubiks_grab && glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT)){
-				distance_to_rubiks = rubiks_seek_face(cube, cam->pos, cam->dir, &piece, &face);
-				prog->rubiks_grab = 1;
-				rubiks_highlight(cube, piece, face);
+		int clickL = glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_LEFT);
+		int clickR = glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT);
+
+		if (!prog->rubiks_grab){
+			if (clickR){
+				distance_to_rubiks = rubiks_seek_face_tile(cube, cam->pos, cam->dir, &face, NULL);
+				if (distance_to_rubiks > 0){
+					// printf("Face: %d\n", face);
+					vec3 dist;
+					vec3_scale(prog->cross->pos, cam->pos, 1);
+					prog->cross->pos[1] -= 0.1;
+					vec3_scale(dist, cam->dir, distance_to_rubiks);
+					vec3_add(prog->cross->target, cam->pos, dist);
+
+					prog->cross->enabled = 1;
+					prog->rubiks_grab = 1;
+				}
+			}
 		}
 		if (prog->rubiks_grab){
 			vec3 rot = {cam->pitch, cam->yaw, cam->roll};
 			rubiks_rotate(cube, rot, camx-cam_prevx, camy-cam_prevy);
 
-
-			if (!glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT)){
+			if (!clickR){
 				prog->rubiks_grab = 0;
 			}
 		}//rubiks grabbing
@@ -704,7 +735,29 @@ int main(){
 		rubiks_render(cube, sphereShader->ID);
 		setInt(sphereShader, "damp_enabled", 1);
 
-		// ------------------- Render Paddle  -----------------------------------//
+		// ------------------- Render Crosshair  -----------------------------------//
+
+		if (prog->cross->enabled){
+			float verts[6];
+			int i;
+			for (i=0; i<3; i++) verts[i] = prog->cross->pos[i];
+			for (i=0; i<3; i++) verts[3+i] = prog->cross->target[i];
+
+			vec4 red = {1,0.5,0.5,1};
+			glUseProgram(sphereShader->ID);
+			setInt(sphereShader, "damp_enabled", 0);
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+			glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+			glUniform4fv(sphereColor, 1, red);
+
+			glBindVertexArray(prog->cross->vao);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+			glEnableVertexAttribArray(0);
+
+			glDrawArrays(GL_LINES, 0, 2);
+			setInt(sphereShader, "damp_enabled", 1);
+		}
 
 		// -------------    Render Tiles    -----------------------//
 		// Bind Tile Shader Program

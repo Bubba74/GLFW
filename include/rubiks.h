@@ -50,17 +50,17 @@ void tile__load_vbo(tile *t){
 
   int indices[] = {
     //Front
-    0,1,2, 1,2,3,
+    0,1,2, 3,1,2,
     //Right
-    1,5,3, 5,3,7,
+    1,5,3, 7,5,3,
     //Top
-    4,5,0, 5,0,1,
+    4,5,0, 1,5,0,
     //Bot
-    6,7,2, 7,2,3,
+    6,7,2, 3,7,2,
     //Left
-    4,0,6, 0,6,2,
+    4,0,6, 2,0,6,
     //Back
-    4,5,6, 5,6,7
+    4,5,6, 7,5,6
   };
 
   /* Panel indices
@@ -179,7 +179,7 @@ void rubiks__update_transform(rubiks *cube){
   mat4x4_translate(cube->transform, cube->pos[0], cube->pos[1], cube->pos[2]);
   mat4x4_rotate_X(cube->transform, cube->transform, cube->rot[0]); //pitch
   mat4x4_rotate_Y(cube->transform, cube->transform, cube->rot[1]); //yaw
-  // mat4x4_rotate_Z(cube->transform, cube->transform, cube->rot[2]); //roll
+  mat4x4_rotate_Z(cube->transform, cube->transform, cube->rot[2]); //roll
 }//rubiks__update_transform
 
 rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
@@ -192,9 +192,9 @@ rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
     vec4_dup(cube->faceColors[h], colors[h]);
 
   //Possible coordinates for tiles, notice 3*3*3 == 27 combos
-  float xCoords[] = {-1.1, 0, 1.1};
-  float yCoords[] = {-1.1, 0, 1.1};
-  float zCoords[] = {-1.1, 0, 1.1};
+  float xCoords[] = {-1.01, 0, 1.01};
+  float yCoords[] = {-1.01, 0, 1.01};
+  float zCoords[] = {-1.01, 0, 1.01};
 
   int i;
   for (i=0; i<27; i++){
@@ -238,15 +238,152 @@ void rubiks_rotate(rubiks *cube, vec3 cam_rot, double dx, double dy){
 
 
   // } else {
-    double rel_angle = cube->rot[1] - cam_rot[1];
-    // cube->rot[1] -= dx/500.0; //yaw
-    printf("Rel_angle: %d\n", (int)(rel_angle/M_PI*90));
+    // double rel_angle = cube->rot[1] - cam_rot[1];
+    cube->rot[1] -= dx/500.0; //yaw
+    // printf("Rel_angle: %d\n", (int)(rel_angle/M_PI*90));
   // }
   rubiks__update_transform(cube);
 }//rubiks_rotate
 
-double rubiks_seek_face(rubiks *cube, vec3 pos, vec3 dir, int *tile_id, int *face_id){
-  return 1;
+void getBounds(vec3 coords[4], float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ){
+  int v;
+  for (v=0; v<4; v++){
+    float *p = coords[v];
+    if      (p[0] < *minX) *minX = p[0];
+    else if (p[0] > *maxX) *maxX = p[0];
+    if      (p[1] < *minY) *minY = p[1];
+    else if (p[1] > *maxY) *maxY = p[1];
+    if      (p[2] < *minZ) *minZ = p[2];
+    else if (p[2] > *maxZ) *maxZ = p[2];
+  }
+}//getBounds
+
+double rubiks_seek_face_tile(rubiks *cube, vec3 cam_pos, vec3 cam_dir, int *face_id, int *tile_id){
+  float dx = 1.5, dy = 1.5, dz = 1.5;
+  float vertices[] = {
+    //Front frame
+    -dx, dy, dz,
+    dx, dy, dz,
+    -dx,-dy, dz,
+    dx,-dy, dz,
+
+    //Back frame
+    -dx, dy,-dz,
+    dx, dy,-dz,
+    -dx,-dy,-dz,
+    dx,-dy,-dz
+  };
+  int indices[] = {
+    //Front
+    0,1,2, 3,1,2,
+    //Right
+    1,5,3, 7,5,3,
+    //Top
+    4,5,0, 1,5,0,
+    //Bot
+    6,7,2, 3,7,2,
+    //Left
+    4,0,6, 2,0,6,
+    //Back
+    4,5,6, 7,5,6
+  };
+
+  mat4x4 inverse; //of rubiks cube transformation
+  // mat4x4_translate(inverse, -cube->pos[0], -cube->pos[1], -cube->pos[2]);
+  // mat4x4_rotate_X(-cube->rot[0]);
+  mat4x4_invert(inverse, cube->transform);
+
+  int z;
+  vec4 pos = {0,0,0,1}; for (z=0; z<3; z++) pos[z] = cam_pos[z];
+  vec4 dir = {0,0,0,1}; for (z=0; z<3; z++) dir[z] = cam_dir[z];
+  vec4 new_pos, new_dir;
+  mat4x4_mul_vec4(new_pos, inverse, pos);
+  mat4x4_mul_vec4(new_dir, inverse, dir);
+  vec4_add(new_dir, new_dir, cube->pos);
+
+  int print = 0;
+  if (print) {
+    printf("\n");
+    printf("[ %.2f , %.2f , %.2f , %.2f] ==> ", pos[0], pos[1], pos[2], pos[3]);
+    printf("[ %.2f , %.2f , %.2f , %.2f] ==> ", dir[0], dir[1], dir[2], dir[3]);
+    printf("\n");
+    printf("Pos: [ %.2f , %.2f , %.2f , %.2f]\n", new_pos[0], new_pos[1], new_pos[2], new_pos[3]);
+    printf("Dir: [ %.2f , %.2f , %.2f , %.2f]\n", new_dir[0], new_dir[1], new_dir[2], new_dir[3]);
+  }
+
+  double dist = -1; //A really big number
+  int faceTarget = -1;
+
+  vec3 coords[4];
+  // face, vertex, index
+  int f, v, i;
+  for (f=0; f<6; f++){
+
+    //Load the 4 vertices of the cube's face
+    for (v=0; v<4; v++){
+      int i;
+      for (i=0; i<3; i++){
+        coords[v][i] = vertices[i+3*indices[6*f+v]];
+      }//for each index of the vertex
+    }//for each vertex
+
+    //Get the min/max bounds for the square
+    float MIN = -RAND_MAX, MAX = RAND_MAX;
+    float minX=MAX, maxX=MIN, minY=MAX, maxY=MIN, minZ=MAX, maxZ=MIN;
+    getBounds(coords, &minX, &maxX, &minY, &maxY, &minZ, &maxZ);
+
+    //Seek distance to axis-aligned component of the tile
+    double e = 0.01;
+    double dist_to_tile;
+    if (fabs(minX - maxX) < e)
+      dist_to_tile = (minX-new_pos[0]) / new_dir[0];
+    else if (fabs(minY - maxY) < e)
+      dist_to_tile = (minY-new_pos[1]) / new_dir[1];
+    else if (fabs(minZ - maxZ) < e)
+      dist_to_tile = (minZ-new_pos[2]) / new_dir[2];
+    else{
+      printf("The rubik's tile is not orientated along a side\n");
+      dist_to_tile = -1;
+    }
+
+    // printf("%d>X: [%.2f,%.2f]\tY: [%.2f,%.2f]\tZ: [%.2f,%.2f]", f,minX,maxX,minY,maxY,minZ,maxZ);
+
+
+    //If there is no hope of reaching the target tile,
+    //    or the tile is behind an already-contacted tile,
+    //      continue to check the next tile
+
+    // printf (" ==> %.2f\n", dist_to_tile);
+
+    if (dist_to_tile < 0)
+      continue;
+    if (dist > 0 && dist_to_tile > dist)
+      continue;
+
+    //Check that the line contacts the square in that distance
+    float xTarget = new_pos[0] + new_dir[0]*dist_to_tile;
+    float yTarget = new_pos[1] + new_dir[1]*dist_to_tile;
+    float zTarget = new_pos[2] + new_dir[2]*dist_to_tile;
+
+    int xCheck = minX-e <= xTarget && xTarget <= maxX+e;
+    int yCheck = minY-e <= yTarget && yTarget <= maxY+e;
+    int zCheck = minZ-e <= zTarget && zTarget <= maxZ+e;
+    if (xCheck && yCheck && zCheck){
+      dist = dist_to_tile;
+      faceTarget = f;
+      // printf("Setting dist to %.2f and face to %d\n", dist, faceTarget);
+    } else {
+      int err = (  !xCheck?0: ( !yCheck?1:(!zCheck?2:3) )  );
+      // printf ("Failed on %d\n", err);
+    }
+
+  }//for each face
+
+  if (faceTarget > -1){
+    *face_id = faceTarget;
+  }
+
+  return dist;
 }//rubiks_seek_face
 void rubiks_highlight(rubiks *cube, int tile_id, int face_id){
 
