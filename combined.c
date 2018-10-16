@@ -30,6 +30,7 @@ double minf(double a, double b){
 
 unsigned int loadTexture(char *);
 
+int initGL();
 void setViewPort();
 void loadShaders(unsigned int, const char *, const char *);
 
@@ -68,8 +69,47 @@ typedef struct objectPipeline {
 	unsigned int ebo, ebo_c;
 } Object;
 
-void updatePingBall(Sphere *ball, Object paddle);
+struct crate_data {
+	Shader *shader;
+	unsigned int texture;
 
+	unsigned int vao, ebo_c;
+	unsigned int loc, mod, view, persp, paint;
+
+	vec3 pos;
+	float theta;
+};
+
+struct gnd_data {
+	Shader *shader;
+	unsigned int texture;
+
+	unsigned int vao, ebo_c;
+	unsigned int loc, vp;
+
+	vec3 pos;
+};
+
+struct program_data {
+	GLFWwindow *window;
+	float zoom;
+	int paddleGame, rubiks_grab;
+
+	struct crate_data *crate;
+	struct gnd_data *gnd;
+};
+
+
+void loadGnd();
+void loadCrate();
+void process_crate_input();
+void crate_render(mat4x4 perspective, mat4x4 cam_view);
+void paddle_render(Shader *shader, Object paddle);
+
+
+void paddle_update(Object *paddle, Camera *cam);
+void ball_reset(Sphere *sphere, vec3 targetPos, vec3 paddlePos);
+void updatePingBall(Sphere *ball, Object paddle);
 
 #define side1 0
 #define side2 8
@@ -184,166 +224,24 @@ unsigned int getBuildingVAO(struct frame building){
 	return VAO;
 }//getBuildingVAO
 
+void scrollCallback(GLFWwindow *win, double xoff, double yoff);
 
+struct program_data *prog;
 
 int main(){
+	prog = malloc(sizeof(struct program_data));
+	prog->paddleGame = 1;
+	prog->rubiks_grab = 0;
+	prog->zoom = 10;
 
-	float vertices[] = {
-		-1.0, -1.0,   0.5,0, //BL
-		-1.0, 1.0,    0.5,1,   //TL
-		1.0, 1.0,     1,1,   //TR
-
-		1.0, 1.0,     1,1,   //TR
-		1.0, -1.0,     1,0,   //BR
-		-1.0, -1.0,   0.5,0 //BL
-	};
-
-	float crateVertices[] = {
-			-0.5f, -0.5f, -0.5f,  c_l, c_b,
-			 0.5f, -0.5f, -0.5f,  c_r, c_b,
-			 0.5f,  0.5f, -0.5f,  c_r, c_t,
-			 0.5f,  0.5f, -0.5f,  c_r, c_t,
-			-0.5f,  0.5f, -0.5f,  c_l, c_t,
-			-0.5f, -0.5f, -0.5f,  c_l, c_b,
-
-			-0.5f, -0.5f,  0.5f,  c_l, c_b,
-			 0.5f, -0.5f,  0.5f,  c_r, c_b,
-			 0.5f,  0.5f,  0.5f,  c_r, c_t,
-			 0.5f,  0.5f,  0.5f,  c_r, c_t,
-			-0.5f,  0.5f,  0.5f,  c_l, c_t,
-			-0.5f, -0.5f,  0.5f,  c_l, c_b,
-
-			-0.5f,  0.5f,  0.5f,  c_r, c_b,
-			-0.5f,  0.5f, -0.5f,  c_r, c_t,
-			-0.5f, -0.5f, -0.5f,  c_l, c_t,
-			-0.5f, -0.5f, -0.5f,  c_l, c_t,
-			-0.5f, -0.5f,  0.5f,  c_l, c_b,
-			-0.5f,  0.5f,  0.5f,  c_r, c_b,
-
-			 0.5f,  0.5f,  0.5f,  c_r, c_b,
-			 0.5f,  0.5f, -0.5f,  c_r, c_t,
-			 0.5f, -0.5f, -0.5f,  c_l, c_t,
-			 0.5f, -0.5f, -0.5f,  c_l, c_t,
-			 0.5f, -0.5f,  0.5f,  c_l, c_b,
-			 0.5f,  0.5f,  0.5f,  c_r, c_b,
-
-			-0.5f, -0.5f, -0.5f,  c_l, c_t,
-			 0.5f, -0.5f, -0.5f,  c_r, c_t,
-			 0.5f, -0.5f,  0.5f,  c_r, c_b,
-			 0.5f, -0.5f,  0.5f,  c_r, c_b,
-			-0.5f, -0.5f,  0.5f,  c_l, c_b,
-			-0.5f, -0.5f, -0.5f,  c_l, c_t,
-
-			-0.5f,  0.5f, -0.5f,  c_l, c_t,
-			 0.5f,  0.5f, -0.5f,  c_r, c_t,
-			 0.5f,  0.5f,  0.5f,  c_r, c_b,
-			 0.5f,  0.5f,  0.5f,  c_r, c_b,
-			-0.5f,  0.5f,  0.5f,  c_l, c_b,
-			-0.5f,  0.5f, -0.5f,  c_l, c_t
-	};
-
-
-	// glfw initialization
-	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-	// window init
-	window = glfwCreateWindow (WIN_WIDTH, WIN_HEIGHT, "OpenGL Window\n", NULL, NULL);
-	if (window == NULL){
-		printf("Failed to create OpenGL window!\n");
-		glfwTerminate();
+	//Init graphics
+	if (!initGL())
 		return -1;
-	}
-	glfwSetWindowPos(window, WIN_X, WIN_Y);
-	glfwSwapInterval(0);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glfwMakeContextCurrent(window);
+	glfwSetScrollCallback(prog->window, scrollCallback);
 
-	// GLAD init
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-		printf("Failed to initialize GLAD\n");
-		return -1;
-	}
+	loadGnd();
+	loadCrate();
 
-	setViewPort();
-
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-	// --- Shader Programs --- //
-	Shader *shader = getShaderObject();
-	shader->loadShader(shader, "res/tile_shader.vs", "res/tile_shader.fs");
-
-	Shader *crateShader = getShaderObject();
-	crateShader->loadShader(crateShader, "res/vertex_shader.vs.c", "res/fragment_shader.vs.c");
-
-	// --- Vertex Array Buffers --- //
-	unsigned int VAO;
-	glGenVertexArrays(1, &VAO);
-
-	unsigned int crateVAO;
-	glGenVertexArrays(1, &crateVAO);
-
-	unsigned int VBO;
-	glGenBuffers(1, &VBO);
-
-	unsigned int crateVBO;
-	glGenBuffers(1, &crateVBO);
-
-	//Setup VAO for left triangle
-	glBindVertexArray(VAO);
-	//Bind array buffer
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	//Inform VBO of vertices format
-	int stride = 4*sizeof(float);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2*sizeof(float)));
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-
-	glBindVertexArray(0);
-
-	//Setup VAO for crate
-	glBindVertexArray(crateVAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, crateVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(crateVertices), crateVertices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*) 0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*) (3*sizeof(float)));
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-
-	unsigned int tileTexture = loadTexture("textures/map.png");
-
-	unsigned int crateTexture = loadTexture("textures/map.png");
-	unsigned int faceTexture = loadTexture("textures/awesome.png");
-
-
-	shader->use(shader);
-	shader->setInt(shader, "tileTexture", 0);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tileTexture);
-
-
-	crateShader->use(crateShader);
-	crateShader->setInt(crateShader, "crate", 0);
-	crateShader->setInt(crateShader, "face", 1);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, crateTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, faceTexture);
-
-
-	unsigned int localLoc = glGetUniformLocation(crateShader->ID, "local");
-	unsigned int modelLoc = glGetUniformLocation(crateShader->ID, "model");
-	unsigned int viewLoc = glGetUniformLocation(crateShader->ID, "view");
-	unsigned int perspectiveLoc = glGetUniformLocation(crateShader->ID, "perspective");
-	unsigned int colorLoc = glGetUniformLocation(crateShader->ID, "paint");
 
 	unsigned int buildingTexture = loadTexture("textures/buildings/building.png");
 
@@ -452,20 +350,16 @@ int main(){
 	mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
 	mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 
-	//Variables
-	float x = 0, y = 0, z = 0;
-	float theta = 0;
-
 	double cam_prevx = WIN_WIDTH/2;
 	double cam_prevy = WIN_HEIGHT/2;
-	glfwGetCursorPos(window, &cam_prevx, &cam_prevy);
+	glfwGetCursorPos(prog->window, &cam_prevx, &cam_prevy);
 	double camx, camy;
 
 	Camera *cam = cameraGetNew();
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
-	int rotateAroundPaddle = 1;
-	int rotateAroundPaddleLast = 0;
+	int rotateAroundTarget = 1;
+	int rotateAroundTargetLast = 0;
 
 	// vec3 paddle
 	Object paddle;
@@ -556,7 +450,7 @@ int main(){
 	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
-	while (!glfwWindowShouldClose(window)){
+	while (!glfwWindowShouldClose(prog->window)){
 		//Enable transparency and cam-z calculations
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -568,57 +462,20 @@ int main(){
 		for (asd=0; asd<5; asd++)
 			 updateDroplets(droplets, droplets_c, cam->pos);
 
-		//Move the paddle to the right position
-		int dist_to_paddle = 10;
-		vec3 rel_dir;
-		vec3_scale(rel_dir, cam->dir, dist_to_paddle);
-		vec3_add(paddle.pt, cam->pos, rel_dir);
-		paddle.rt.yaw = cam->yaw + M_PI/2;
-		paddle.rt.pitch = cam->pitch + M_PI/12;
-		paddle.rt.pitch = 0;
-
-		if (glfwGetKey(window, GLFW_KEY_B)){
-			vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
-			vec3_scale(targetPos, paddle.pt, 1);
-			targetPos[1] += 2;
-
-			sphere->x = targetPos[0], sphere->y = targetPos[1], sphere->z = targetPos[2];
-		}
-
-		updatePingBall(sphere, paddle);
-		targetPos[0] = sphere->x, targetPos[1] = sphere->y, targetPos[2] = sphere->z;
-		mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
-		mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
-
-		graph_point(graph, targetPos[1]);
 
 
 		{  // ------------------ Process Input --------------------- //
-			if (glfwGetKey(window, GLFW_KEY_LEFT)) theta += 0.03;
-			if (glfwGetKey(window, GLFW_KEY_RIGHT)) theta -= 0.03;
 
-			if (glfwGetKey(window, GLFW_KEY_UP)){
-				x += cosf(-theta)/20;
-				y += sinf(-theta)/20;
-			}
-			if (glfwGetKey(window, GLFW_KEY_DOWN)){
-				x -= cosf(-theta)/20;
-				y -= sinf(-theta)/20;
-			}
-			if (glfwGetKey(window, GLFW_KEY_ENTER)){
-				z += 0.1f;
-			}
-			if (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)){
-				z -= 0.1f;
-			}
+			process_crate_input();
 
-			int keyR = glfwGetKey(window, GLFW_KEY_R);
-			int keyW = glfwGetKey(window, GLFW_KEY_W);
-			int keyA = glfwGetKey(window, GLFW_KEY_A);
-			int keyS = glfwGetKey(window, GLFW_KEY_S);
-			int keyD = glfwGetKey(window, GLFW_KEY_D);
-			int keyLeftShift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
-			int keySpace = glfwGetKey(window, GLFW_KEY_SPACE);
+			GLFWwindow *win = prog->window;
+			int keyR = glfwGetKey(win, GLFW_KEY_R);
+			int keyW = glfwGetKey(win, GLFW_KEY_W);
+			int keyA = glfwGetKey(win, GLFW_KEY_A);
+			int keyS = glfwGetKey(win, GLFW_KEY_S);
+			int keyD = glfwGetKey(win, GLFW_KEY_D);
+			int keyLeftShift = glfwGetKey(win, GLFW_KEY_LEFT_SHIFT);
+			int keySpace = glfwGetKey(win, GLFW_KEY_SPACE);
 
 			//Scale direction vector to appropriate speed
 			double speedForward = 0.08;
@@ -644,82 +501,84 @@ int main(){
 				else if (keyLeftShift) cameraUp(cam, -speedRaise);
 
 			//Toggle rotateAroundPaddle
-			int paddleKey = GLFW_KEY_M;
-			if (glfwGetKey(window, paddleKey)){
-				if (!rotateAroundPaddleLast){
-					rotateAroundPaddle = 1 - rotateAroundPaddle;
-					rotateAroundPaddleLast = 1;
+			int targetKey = GLFW_KEY_M;
+			if (glfwGetKey(win, targetKey)){
+				if (!rotateAroundTargetLast){
+					rotateAroundTarget = 1 - rotateAroundTarget;
+					rotateAroundTargetLast = 1;
 				}
 			} else {
-				rotateAroundPaddleLast = 0;
+				rotateAroundTargetLast = 0;
 			}
 
-			glfwGetCursorPos(window, &camx, &camy);
+			glfwGetCursorPos(win, &camx, &camy);
 		}
 
+		// -----------------  Paddle Game --------------------//
+		if (glfwGetKey(prog->window, GLFW_KEY_P) == GLFW_PRESS)
+			prog->paddleGame = 1 - prog->paddleGame;
+
+		if (prog->paddleGame){
+			paddle_update(&paddle, cam);
+
+			if (glfwGetKey(prog->window, GLFW_KEY_B))
+				ball_reset(sphere, targetPos, paddle.pt);
+
+			updatePingBall(sphere, paddle);
+			targetPos[0] = sphere->x, targetPos[1] = sphere->y, targetPos[2] = sphere->z;
+			mat4x4_translate(targetTransform, targetPos[0], targetPos[1], targetPos[2]);
+			mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
+
+			graph_point(graph, targetPos[1]);
+
+			// ---------------- Rendering ------------------- //
+			glUseProgram(sphereShader->ID);
+			paddle_render(sphereShader, paddle);
+
+			//Render the graph
+			glDisable(GL_DEPTH_TEST);
+			renderGraph(graphShader, graph);
+			glEnable(GL_DEPTH_TEST);
+
+		}//paddleGame
+
 		//------------- Calculate Matrices --------------------- //
-		if (rotateAroundPaddle)
-			cameraRotateAroundTarget(cam, camx-cam_prevx, camy-cam_prevy, dist_to_paddle);
-		else
-			cameraRotateFromPos(cam, camx-cam_prevx, camy-cam_prevy);
+		if (!prog->rubiks_grab){
+			if (rotateAroundTarget)
+				cameraRotateAroundTarget(cam, camx-cam_prevx, camy-cam_prevy, prog->zoom);
+			else
+				cameraRotateFromPos(cam, camx-cam_prevx, camy-cam_prevy);
+		}
 
 		cameraGenerateViewMatrix(cam);
 
-		mat4x4 perspective, viewTimesPerspective;
-
 		//Perspective
+		mat4x4 perspective;
 		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.01f, 1000.0f);
 
-		//Product
+		//Camera view times Perspective
+		mat4x4 viewTimesPerspective;
 		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
 
-		// ------------------- Render Crate -------------------- //
 
-		mat4x4 localIdentity;
-		mat4x4_identity(localIdentity);
-
-		mat4x4 crateLocal, crateModel;
-		mat4x4_identity(crateModel);
-		mat4x4_identity(crateLocal);//rot
-		mat4x4_translate_in_place(crateLocal, x, -y, z); //translate
-		mat4x4_rotate_Z(crateLocal, crateLocal, theta); //output, rot
-
-
-		glUseProgram(crateShader->ID);
-
-		{  //Send matrix transformations to shader program
-			glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
-			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-			glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-			glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
-		}
-
-		vec3 black = {0, 0, 0};
-		glUniform3fv(colorLoc, 1, black);
-
-		//Bind crate and face textures
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, crateTexture);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, faceTexture);
-
-		//Bind CrateVAO and draw triangles
-		glBindVertexArray(crateVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
+		//------------------Render Objects -------------------------//
+		crate_render(perspective, cam->viewMatrix);
 
 		//Bind building texture
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, buildingTexture);
 
 		//Replace crateLocal with neutral matrix
-		glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+		mat4x4 localIdentity;
+		mat4x4_identity(localIdentity);
+		glUseProgram(prog->crate->shader->ID);
+		glUniformMatrix4fv(prog->crate->loc, 1, GL_FALSE, (const GLfloat *)localIdentity);
 
 		int buildingc;
 		for (buildingc=0; buildingc<10; buildingc++){
 			//Bind buildingVAO and draw triangles
+			glUniform3fv(prog->crate->paint, 1, colors[buildingc]);
 			glBindVertexArray(buildingVAOs[buildingc]);
-			glUniform3fv(colorLoc, 1, colors[buildingc]);
 			glDrawElements(GL_TRIANGLES, 48, GL_UNSIGNED_INT, 0);
 		}
 
@@ -771,7 +630,7 @@ int main(){
 
 		}
 
-		if (glfwGetKey(window, GLFW_KEY_C) && dist < MAX_DISTANCE){
+		if (glfwGetKey(prog->window, GLFW_KEY_C) && dist < MAX_DISTANCE){
 			vec3 advance;
 			vec3_scale(advance, direction, dist);
 			vec3_add(targetPos, start, advance);
@@ -779,20 +638,17 @@ int main(){
 			mat4x4_scale_aniso(targetTransform, targetTransform, (float)sphere->r, (float)sphere->r, (float)sphere->r);
 		}
 
+
 		//Render Sphere
 		sphereShader->use(sphereShader);
-
-		{ //Send matrix transformations to shader program
-			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
-			glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-			glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
-			setInt(sphereShader, "damp_enabled", 1);
-		}
+		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)targetTransform);
+		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
+		glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+		glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
+		setInt(sphereShader, "damp_enabled", 1);
 
 		//Draw the target sphere
 		glUniform4fv(sphereColor, 1, sphere->rgba);
-		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)targetTransform);
 		glBindVertexArray(sphere->VAO);
 		glDrawElements(GL_TRIANGLE_STRIP, sphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 
@@ -825,77 +681,65 @@ int main(){
 			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
-		//Render Rubik's cube
-		vec4 darkGreen = {0, 1, 0.2, 1};
+
+
+
+		// --------------------------Render Rubik's cube--------------------------//
+		int piece, face;
+		double distance_to_rubiks;
+
+		if (!prog->rubiks_grab && glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT)){
+				distance_to_rubiks = rubiks_seek_face(cube, cam->pos, cam->dir, &piece, &face);
+				prog->rubiks_grab = 1;
+				rubiks_highlight(cube, piece, face);
+		}
+		if (prog->rubiks_grab){
+			rubiks_rotate(cube, camx-cam_prevx, camy-cam_prevy);
+
+
+			if (!glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT)){
+				prog->rubiks_grab = 0;
+			}
+		}//rubiks grabbing
+
 		setInt(sphereShader, "damp_enabled", 0);
-		glUniform4fv(sphereColor, 1, darkGreen);
 		rubiks_render(cube, sphereShader->ID);
 		setInt(sphereShader, "damp_enabled", 1);
 
+		// ------------------- Render Paddle  -----------------------------------//
 
-		//Bind and render paddle
-		mat4x4 paddleLocal;
-		mat4x4_identity(paddleLocal);
-		mat4x4_translate_in_place(paddleLocal, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
-		mat4x4_rotate_Y(paddleLocal, paddleLocal, paddle.rt.yaw);
-		mat4x4_rotate_X(paddleLocal, paddleLocal, paddle.rt.pitch);
-		mat4x4_scale_aniso(paddleLocal, paddleLocal, paddle.r, 0.15, paddle.r);
-		glUniform4fv(sphereColor, 1, darkGreen);
-		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
-		glUniformMatrix4fv(sphereModelLoc, 1, GL_FALSE, (const GLfloat *)localIdentity);
-		glBindVertexArray(paddle.vao);
-		glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
+		// -------------    Render Tiles    -----------------------//
+		// Bind Tile Shader Program
+		glUseProgram(prog->gnd->shader->ID);
 
-		//Unbind VAO
-		glBindVertexArray(0);
-
-		// Bind Crate Shader Program
-		glUseProgram(shader->ID);
-
-		unsigned int tile_vpLoc = glGetUniformLocation(shader->ID, "vp");
+		unsigned int tile_vpLoc = glGetUniformLocation(prog->gnd->shader->ID, "vp");
 		glUniformMatrix4fv(tile_vpLoc, 1, GL_FALSE, (const GLfloat *) viewTimesPerspective);
 
-		//Send matrix transformations to shader program
-		// glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)crateLocal);
-		// glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (const GLfloat *)crateModel);
-		// glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (const GLfloat *)cameraView);
-		// glUniformMatrix4fv(perspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
-
-		//Bind proper data
-		glBindVertexArray(VAO);
-
+		//Bind tile texture
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, tileTexture);
-
-		//Draw main crate
-		// glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		unsigned int localLoc = glGetUniformLocation(shader->ID, "local");
+		glBindTexture(GL_TEXTURE_2D, prog->gnd->texture);
 
 		mat4x4 local;
 		mat4x4_identity(local);
 
+		glBindVertexArray(prog->gnd->vao);
 		int i,j;
 		for (i=-10; i<10; i++){
 			for (j=-10; j<10; j++){
 				mat4x4_translate(local, 2*i, 0, 2*j);
-				glUniformMatrix4fv(localLoc, 1, GL_FALSE, (const GLfloat *)local);
+				glUniformMatrix4fv(prog->gnd->loc, 1, GL_FALSE, (const GLfloat *)local);
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 			}
 		}
 
-
-		//Render the graph
-		glDisable(GL_DEPTH_TEST);
-		renderGraph(graphShader, graph);
-		glEnable(GL_DEPTH_TEST);
+		// ----------------------------------------------------//
 
 		glBindVertexArray(0);
 
 		//GLFW Update Ticks
 		glfwPollEvents();
-		processInput(window);
-		glfwSwapBuffers(window);
+		processInput(prog->window);
+		glfwSwapBuffers(prog->window);
 
 		cam_prevx = camx;
 		cam_prevy = camy;
@@ -906,6 +750,248 @@ int main(){
 	return 0;
 
 }//main
+
+int initGL(){
+	// glfw initialization
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	prog->window = glfwCreateWindow (WIN_WIDTH, WIN_HEIGHT, "OpenGL Window\n", NULL, NULL);
+	if (prog->window == NULL){
+		glfwTerminate();
+		return 0;
+	}
+	glfwSetWindowPos(prog->window, WIN_X, WIN_Y);
+	glfwSwapInterval(0);
+	glfwSetFramebufferSizeCallback(prog->window, framebuffer_size_callback);
+	glfwMakeContextCurrent(prog->window);
+
+	// GLAD init
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+		printf("Failed to initialize GLAD\n");
+		return 0;
+	}
+
+	setViewPort();
+
+	glfwSetInputMode(prog->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	return 1;
+}//initGL
+void scrollCallback(GLFWwindow *win, double xoff, double yoff){
+	if (yoff > 0)
+		prog->zoom /= 1.05;
+	if (yoff < 0)
+		prog->zoom *= 1.05;
+}//scrollCallback
+
+void loadGnd(){
+
+	float vertices[] = {
+		-1.0, -1.0,   0.5,0, //BL
+		-1.0, 1.0,    0.5,1,   //TL
+		1.0, 1.0,     1,1,   //TR
+
+		1.0, 1.0,     1,1,   //TR
+		1.0, -1.0,     1,0,   //BR
+		-1.0, -1.0,   0.5,0 //BL
+	};
+
+	prog->gnd = malloc(sizeof(struct gnd_data));
+	struct gnd_data *obj = prog->gnd;
+
+	glGenVertexArrays(1, &obj->vao);
+	glBindVertexArray(obj->vao);
+
+	unsigned int vbo;
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*) 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*) (2*sizeof(float)));
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+
+	obj->shader = getShaderObject();
+	loadShader(obj->shader, "res/tile_shader.vs", "res/tile_shader.fs");
+
+	obj->loc = glGetUniformLocation(obj->shader->ID, "local");
+	obj->vp = glGetUniformLocation(obj->shader->ID, "vp");
+	obj->texture = loadTexture("textures/map.png");
+}//loadGnd
+void loadCrate(){
+
+	float c_t = 512/512.0f; //c_t
+	float c_b = 0/512.0f; //c_btom
+	float c_l = 0/1024.0f; //c_l
+	float c_r = 512/1024.0f; //c_r
+
+	float vertices[] = {
+			-0.5f, -0.5f, -0.5f,  c_l, c_b,
+			 0.5f, -0.5f, -0.5f,  c_r, c_b,
+			 0.5f,  0.5f, -0.5f,  c_r, c_t,
+			 0.5f,  0.5f, -0.5f,  c_r, c_t,
+			-0.5f,  0.5f, -0.5f,  c_l, c_t,
+			-0.5f, -0.5f, -0.5f,  c_l, c_b,
+
+			-0.5f, -0.5f,  0.5f,  c_l, c_b,
+			 0.5f, -0.5f,  0.5f,  c_r, c_b,
+			 0.5f,  0.5f,  0.5f,  c_r, c_t,
+			 0.5f,  0.5f,  0.5f,  c_r, c_t,
+			-0.5f,  0.5f,  0.5f,  c_l, c_t,
+			-0.5f, -0.5f,  0.5f,  c_l, c_b,
+
+			-0.5f,  0.5f,  0.5f,  c_r, c_b,
+			-0.5f,  0.5f, -0.5f,  c_r, c_t,
+			-0.5f, -0.5f, -0.5f,  c_l, c_t,
+			-0.5f, -0.5f, -0.5f,  c_l, c_t,
+			-0.5f, -0.5f,  0.5f,  c_l, c_b,
+			-0.5f,  0.5f,  0.5f,  c_r, c_b,
+
+			 0.5f,  0.5f,  0.5f,  c_r, c_b,
+			 0.5f,  0.5f, -0.5f,  c_r, c_t,
+			 0.5f, -0.5f, -0.5f,  c_l, c_t,
+			 0.5f, -0.5f, -0.5f,  c_l, c_t,
+			 0.5f, -0.5f,  0.5f,  c_l, c_b,
+			 0.5f,  0.5f,  0.5f,  c_r, c_b,
+
+			-0.5f, -0.5f, -0.5f,  c_l, c_t,
+			 0.5f, -0.5f, -0.5f,  c_r, c_t,
+			 0.5f, -0.5f,  0.5f,  c_r, c_b,
+			 0.5f, -0.5f,  0.5f,  c_r, c_b,
+			-0.5f, -0.5f,  0.5f,  c_l, c_b,
+			-0.5f, -0.5f, -0.5f,  c_l, c_t,
+
+			-0.5f,  0.5f, -0.5f,  c_l, c_t,
+			 0.5f,  0.5f, -0.5f,  c_r, c_t,
+			 0.5f,  0.5f,  0.5f,  c_r, c_b,
+			 0.5f,  0.5f,  0.5f,  c_r, c_b,
+			-0.5f,  0.5f,  0.5f,  c_l, c_b,
+			-0.5f,  0.5f, -0.5f,  c_l, c_t
+	};
+
+	prog->crate = malloc(sizeof(struct crate_data));
+	struct crate_data *obj = prog->crate;
+	obj->pos[0] = 0, obj->pos[1] = 0, obj->pos[2] = 0;
+	obj->theta = M_PI/6;
+	obj->texture = loadTexture("textures/map.png");
+	// --- Vertex Array Buffers --- //
+	glGenVertexArrays(1, &obj->vao);
+	glBindVertexArray(obj->vao);
+
+	unsigned int vbo;
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*) 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*) (3*sizeof(float)));
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+
+	obj->shader = getShaderObject();
+	loadShader(obj->shader, "res/vertex_shader.vs.c", "res/fragment_shader.vs.c");
+
+	obj->loc = glGetUniformLocation(obj->shader->ID, "local");
+	obj->mod = glGetUniformLocation(obj->shader->ID, "model");
+	obj->view = glGetUniformLocation(obj->shader->ID, "view");
+	obj->persp = glGetUniformLocation(obj->shader->ID, "perspective");
+	obj->paint = glGetUniformLocation(obj->shader->ID, "paint");
+
+}//loadCrate
+
+void process_crate_input(){
+	if (glfwGetKey(prog->window, GLFW_KEY_LEFT)) prog->crate->theta += 0.03;
+	if (glfwGetKey(prog->window, GLFW_KEY_RIGHT)) prog->crate->theta -= 0.03;
+
+	vec3 crate_vel = {0,0,0};
+	if (glfwGetKey(prog->window, GLFW_KEY_UP)){
+		crate_vel[0] += cosf(-prog->crate->theta)/20;
+		crate_vel[1] += sinf(-prog->crate->theta)/20;
+	}
+	if (glfwGetKey(prog->window, GLFW_KEY_DOWN)){
+		crate_vel[0] -= cosf(-prog->crate->theta)/20;
+		crate_vel[1] -= sinf(-prog->crate->theta)/20;
+	}
+	if (glfwGetKey(prog->window, GLFW_KEY_ENTER)){
+		crate_vel[2] += 0.1f;
+	}
+	if (glfwGetKey(prog->window, GLFW_KEY_RIGHT_SHIFT)){
+		crate_vel[2] -= 0.1f;
+	}
+	vec3_add(prog->crate->pos, prog->crate->pos, crate_vel);
+}//process_crate_input
+void crate_render(mat4x4 perspective, mat4x4 cam_view){
+
+	mat4x4 local;
+	vec3 pos;
+	vec3_scale(pos, prog->crate->pos, 1);
+	mat4x4_translate(local, pos[0], -pos[1], pos[2]); //translate
+	mat4x4_rotate_Z(local, local, prog->crate->theta); //output, rot
+	mat4x4 model;
+	mat4x4_identity(model);
+
+	//Load uniforms into crate shader
+	glUseProgram(prog->crate->shader->ID);
+	glUniformMatrix4fv(prog->crate->loc, 1, GL_FALSE, (const GLfloat *)local);
+	glUniformMatrix4fv(prog->crate->mod, 1, GL_FALSE, (const GLfloat *)model);
+	glUniformMatrix4fv(prog->crate->view, 1, GL_FALSE, (const GLfloat *)cam_view);
+	glUniformMatrix4fv(prog->crate->persp, 1, GL_FALSE, (const GLfloat *)perspective);
+	vec3 black = {0, 0, 0};
+	glUniform3fv(prog->crate->paint, 1, black);
+
+	//Bind crate texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, prog->crate->texture);
+
+	//Bind vao and draw triangles
+	glBindVertexArray(prog->crate->vao);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glBindVertexArray(0);
+
+}//crate_render
+void paddle_render(Shader *shader, Object paddle){
+	unsigned int color = glGetUniformLocation(shader->ID, "rgba"),
+							 loc = glGetUniformLocation(shader->ID, "local"),
+ 							 mod = glGetUniformLocation(shader->ID, "model");
+	vec3 darkGreen = {0, .9, .3};
+	//Bind and render paddle
+	mat4x4 identity;
+	mat4x4_identity(identity);
+	mat4x4 local;
+	mat4x4_translate(local, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
+	mat4x4_rotate_Y(local, local, paddle.rt.yaw);
+	mat4x4_rotate_X(local, local, paddle.rt.pitch);
+	mat4x4_scale_aniso(local, local, paddle.r, 0.15, paddle.r);
+	glUniform4fv(color, 1, darkGreen);
+	glUniformMatrix4fv(loc, 1, GL_FALSE, (const GLfloat *)local);
+	glUniformMatrix4fv(mod, 1, GL_FALSE, (const GLfloat *)identity);
+	glBindVertexArray(paddle.vao);
+	glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
+}//paddle_render
+
+void paddle_update(Object *paddle, Camera *cam){
+	//Move the paddle to the right position
+	int dist_to_paddle = 10;
+	vec3 rel_dir;
+	vec3_scale(rel_dir, cam->dir, prog->zoom);
+	vec3_add(paddle->pt, cam->pos, rel_dir);
+	paddle->rt.yaw = cam->yaw + M_PI/2;
+	paddle->rt.pitch = cam->pitch + M_PI/12;
+	paddle->rt.pitch = 0;
+}//paddle_update
+
+void ball_reset(Sphere *sphere, vec3 targetPos, vec3 paddlePos){
+	vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
+	vec3_scale(targetPos, paddlePos, 1);
+	targetPos[1] += 2;
+
+	sphere->x = targetPos[0], sphere->y = targetPos[1], sphere->z = targetPos[2];
+}//ball_reset
+
+
+
 
 void setViewPort(){
 	// set OpenGL viewport

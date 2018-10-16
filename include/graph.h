@@ -11,8 +11,6 @@
 #define GRAPH_MIN -2000000000;
 #define GRAPH_MAX 2000000000;
 
-GLFWwindow *window;
-
 typedef struct graph_object {
 
   vec3 pos;
@@ -58,8 +56,6 @@ Graph *graph_create(vec3 top_left, float width, float height, int length){
 
   glGenBuffers(1, &graph->vbo);
   glBindBuffer(GL_ARRAY_BUFFER, graph->vbo);
-  // glBufferData(GL_ARRAY_BUFFER, graph->len*sizeof(float), graph->rel_data, GL_STATIC_DRAW);
-  // float fake_data[] = {0, 100, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, .8, .9, .9, .8, .7, .6, .5, .4, .3, .2, .1, 0};
   glBufferData(GL_ARRAY_BUFFER, graph->len*sizeof(float), graph->rel_data, GL_DYNAMIC_DRAW);
 
   glBindVertexArray(0);
@@ -86,8 +82,6 @@ void graph_point(Graph *graph, float value){
 
   if (graph->index == graph->len)
     graph->index = 0;
-
-  // printf("Val: %.2f\n", value);
 
 }//graph_point
 int print = 0;

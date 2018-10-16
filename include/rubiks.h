@@ -167,7 +167,7 @@ typedef struct rubiks_struct {
   //Virtual cube, with rows starting at the top (0) to bottom(2)
   //Columns start at left (0) to right (2)
 
-  vec3 pos;
+  vec3 pos, rot;
   mat4x4 transform;
 
   tile *tiles[27];
@@ -175,10 +175,17 @@ typedef struct rubiks_struct {
 
 } rubiks;
 
+void rubiks__update_transform(rubiks *cube){
+  mat4x4_translate(cube->transform, cube->pos[0], cube->pos[1], cube->pos[2]);
+  mat4x4_rotate_X(cube->transform, cube->transform, cube->rot[0]);
+  mat4x4_rotate_Y(cube->transform, cube->transform, cube->rot[1]);
+  mat4x4_rotate_Z(cube->transform, cube->transform, cube->rot[2]);
+}//rubiks__update_transform
+
 rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
   rubiks *cube = malloc(sizeof(rubiks));
   vec3_dup(cube->pos, pos);
-  mat4x4_translate(cube->transform, cube->pos[0], cube->pos[1], cube->pos[2]);
+  cube->rot[0] = 0, cube->rot[1] = 0, cube->rot[2] = 0;
 
   int h;
   for (h=0; h<6; h++)
@@ -200,7 +207,7 @@ rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
     for (j=0; j<6; j++)
       tile_set_face_color(cube->tiles[i], j, cube->faceColors[j]);
   }
-
+  rubiks__update_transform(cube);
   return cube;
 }//rubiks_create
 
@@ -223,5 +230,16 @@ void rubiks_render(rubiks *cube, int shaderID){
 
 }//rubiks_render
 
+void rubiks_rotate(rubiks *cube, double dx, double dy){
+  cube->rot[1] -= dx/10.0;
+  rubiks__update_transform(cube);
+}//rubiks_rotate
+
+double rubiks_seek_face(rubiks *cube, vec3 pos, vec3 dir, int *tile_id, int *face_id){
+  return 1;
+}//rubiks_seek_face
+void rubiks_highlight(rubiks *cube, int tile_id, int face_id){
+
+}//rubiks_highlight
 
 #endif
