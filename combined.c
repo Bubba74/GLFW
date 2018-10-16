@@ -681,9 +681,6 @@ int main(){
 			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
-
-
-
 		// --------------------------Render Rubik's cube--------------------------//
 		int piece, face;
 		double distance_to_rubiks;
@@ -694,7 +691,8 @@ int main(){
 				rubiks_highlight(cube, piece, face);
 		}
 		if (prog->rubiks_grab){
-			rubiks_rotate(cube, camx-cam_prevx, camy-cam_prevy);
+			vec3 rot = {cam->pitch, cam->yaw, cam->roll};
+			rubiks_rotate(cube, rot, camx-cam_prevx, camy-cam_prevy);
 
 
 			if (!glfwGetMouseButton(prog->window, GLFW_MOUSE_BUTTON_RIGHT)){

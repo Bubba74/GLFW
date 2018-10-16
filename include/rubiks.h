@@ -177,9 +177,9 @@ typedef struct rubiks_struct {
 
 void rubiks__update_transform(rubiks *cube){
   mat4x4_translate(cube->transform, cube->pos[0], cube->pos[1], cube->pos[2]);
-  mat4x4_rotate_X(cube->transform, cube->transform, cube->rot[0]);
-  mat4x4_rotate_Y(cube->transform, cube->transform, cube->rot[1]);
-  mat4x4_rotate_Z(cube->transform, cube->transform, cube->rot[2]);
+  mat4x4_rotate_X(cube->transform, cube->transform, cube->rot[0]); //pitch
+  mat4x4_rotate_Y(cube->transform, cube->transform, cube->rot[1]); //yaw
+  // mat4x4_rotate_Z(cube->transform, cube->transform, cube->rot[2]); //roll
 }//rubiks__update_transform
 
 rubiks *rubiks_create(vec3 pos, vec4 colors[6]){
@@ -230,8 +230,18 @@ void rubiks_render(rubiks *cube, int shaderID){
 
 }//rubiks_render
 
-void rubiks_rotate(rubiks *cube, double dx, double dy){
-  cube->rot[1] -= dx/10.0;
+void rubiks_rotate(rubiks *cube, vec3 cam_rot, double dx, double dy){
+  //In the initial instance:
+  // if (fabs(dy) > fabs(dx)){
+    // cube->rot[0] -= dy/500.0; //pitch
+
+
+
+  // } else {
+    double rel_angle = cube->rot[1] - cam_rot[1];
+    // cube->rot[1] -= dx/500.0; //yaw
+    printf("Rel_angle: %d\n", (int)(rel_angle/M_PI*90));
+  // }
   rubiks__update_transform(cube);
 }//rubiks_rotate
 
