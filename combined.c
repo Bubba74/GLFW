@@ -45,7 +45,7 @@ struct frame {
 	float width, height;
 };
 
-#define IMAGE_MAX_SIZE 100000
+#define IMAGE_MAX_SIZE 150000
 struct image {
 	unsigned int size;
 	char *data;
@@ -78,7 +78,7 @@ void loadCameraTexture(){
 		if (!newFrameReady)
 					return;
 
-	  glActiveTexture(GL_TEXTURE0);
+	  glActiveTexture(GL_TEXTURE2);
 	  glBindTexture(GL_TEXTURE_2D, cameraTexture);
 
 	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -140,7 +140,8 @@ void *loadFramesLoop(void *param){
 	//Global CURL *
 	curl_global_init(CURL_GLOBAL_ALL);
 
-	char *URL = "169.232.114.129:8080/shot.jpg";
+	char *URL = "128.97.179.177:8080/shot.jpg";
+
 	//Global Image struct
 	Image.size = 0;
 	Image.data = malloc(IMAGE_MAX_SIZE);//Allocate 100K for frame
@@ -153,7 +154,7 @@ void *loadFramesLoop(void *param){
 	curl_easy_setopt(fetchFrame, CURLOPT_URL, URL);
 	curl_easy_setopt(fetchFrame, CURLOPT_HTTPGET, 1L);
 	curl_easy_setopt(fetchFrame, CURLOPT_TCP_NODELAY, 1);
-	curl_easy_setopt(fetchFrame, CURLOPT_BUFFERSIZE, 100000L);
+	curl_easy_setopt(fetchFrame, CURLOPT_BUFFERSIZE, IMAGE_MAX_SIZE);
 
 	curl_easy_setopt(fetchFrame, CURLOPT_WRITEFUNCTION, curlWrite);
 	curl_easy_setopt(fetchFrame, CURLOPT_WRITEDATA, &Image);
@@ -487,14 +488,40 @@ int main(){
 
 	//----------- For Camera Fetching ------------- //
 	//TV Panel
+
 	float tvVertices[] = {
-		-0.51,  0.25,  0.5, 0, 0,//TL
-		-0.51,  0.25, -0.5, 1, 0,//TR
-		-0.51, -0.25,  0.5, 0, 1,//BL
-		-0.51, -0.25,  0.5, 0, 1,//BL
-		-0.51,  0.25, -0.5, 1, 0,//TR
-		-0.51, -0.25, -0.5, 1, 1//BR
+		-0.51,  0.25,  0.5, 1, 0,//TL
+		-0.51,  0.25, -0.5, 0, 0,//TR
+		-0.51, -0.25,  0.5, 1, 1,//BL
+		-0.51, -0.25,  0.5, 1, 1,//BL
+		-0.51,  0.25, -0.5, 0, 0,//TR
+		-0.51, -0.25, -0.5, 0, 1//BR
 	};
+
+	typedef unsigned int bool;
+	bool true = 1, false = 0;
+	bool largeScreen = true;
+
+	bool tvOnCrate = false;
+
+	if (largeScreen){
+		float sf = 5;
+		float dx = 0, dy = sf/2, dz = sf;
+		float x = -.51, y = 0, z = 0;
+
+		float tempVertices[] = {
+			x-dx, y+dy, z-dz, 0, 0, //TL
+			x+dx, y+dy, z+dz, 1, 0, //TR
+			x-dx, y-dy, z-dz, 0, 1, //BL
+			x-dx, y-dy, z-dz, 0, 1, //BL
+			x+dx, y+dy, z+dz, 1, 0, //TR
+			x+dx, y-dy, z+dz, 1, 1  //BR
+		};
+		int i;
+		for (i=0; i<5*6; i++)
+			tvVertices[i] = tempVertices[i];
+	}
+
 
 	unsigned int tvVAO;
 	glGenVertexArrays(1, &tvVAO);

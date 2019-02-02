@@ -67,8 +67,7 @@ int main(){
 
 	int rectangle[] = {
 		0, 1, 2,
-		1, 3, 2
-	};
+		1, 3, 2 };
 
 
 	srand(45);
