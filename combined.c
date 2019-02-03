@@ -705,7 +705,7 @@ int main(){
 
 		{ // TEXTURED SPHERE RENDERING
 
-			earthSphere->rot[1] += 0.01;
+			earthSphere->rot[1] += 0.001;
 
 			glUseProgram(texturedSphereShader->ID);
 
@@ -724,20 +724,18 @@ int main(){
 
 			glBindVertexArray(earthSphere->VAO);
 
-			// {
-			// 	int draw_i;
-			// 	for (draw_i=0; draw_i<earthSphere->lats; draw_i++)
-			// 		glDrawElements(GL_TRIANGLE_STRIP, 2*earthSphere->lons, GL_UNSIGNED_INT, (void*)(i*2*earthSphere->lons));
-			// }
 			glDrawElements(GL_TRIANGLE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
 
-			/* Wireframe
-				// //Change Radius of sphere and update matrix
-				// earthSphere->r = 5.2;
-				// sphere_local_matrix(earthSphere, earthLocal);
-				// glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
-				// glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
-			*/
+			// /* Wireframe
+				//Change Radius of sphere and update matrix
+				float temp = earthSphere->r;
+				earthSphere->r *= 0.999;
+				glBindTexture(GL_TEXTURE_2D, 0);
+				sphere_local_matrix(earthSphere, earthLocal);
+				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
+				glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
+				earthSphere->r = temp;
+			// */
 		} //Textured sphere rendering
 
 		glUseProgram(crateShader->ID);
