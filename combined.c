@@ -463,10 +463,11 @@ int main(){
 	Camera *cam = cameraGetNew();
 	cameraPosition3d(cam, 0, 1, 2);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
-	int rotateAroundPaddle = 1;
+	int rotateAroundPaddle = 0;
 	int rotateAroundPaddleLast = 0;
 
 	// vec3 paddle
+	int drawPaddle = 0;
 	Object paddle;
 	{ //Paddle
 		float points[3*2*10];
@@ -540,6 +541,33 @@ int main(){
 
 	}
 
+	// TEXTURED SPHERE SHADER
+	unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	Sphere* earthSphere;
+	Shader *texturedSphereShader;
+	int sphereShaderMatrices[4];
+
+	{ //Round textured sphere EARTH!
+		//Initial wireframe sphere object including texture coordinates
+			// for equirectangular image
+		earthSphere = sphere_create(0,20,0,10);
+		sphere_texture(earthSphere);
+		sphere_init_model(earthSphere,200,200);
+		sphere_attach_vao(earthSphere);
+
+		//Create shader program
+		texturedSphereShader = getShaderObject();
+		glUseProgram(texturedSphereShader->ID);
+		loadShader(texturedSphereShader, "res/texturedSphereShader.vs", "res/texturedSphereShader.fs");
+
+	 	sphereShaderMatrices[0] = glGetUniformLocation(texturedSphereShader->ID, "local");
+	 	sphereShaderMatrices[1] = glGetUniformLocation(texturedSphereShader->ID, "model");
+	 	sphereShaderMatrices[2] = glGetUniformLocation(texturedSphereShader->ID, "view");
+	 	sphereShaderMatrices[3] = glGetUniformLocation(texturedSphereShader->ID, "perspective");
+
+		printf("Earth has %d elements to draw\n", earthSphere->ebo_indices_c);
+	}
+
 	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -564,12 +592,16 @@ int main(){
 		paddle.rt.pitch = cam->pitch + M_PI/12;
 		paddle.rt.pitch = 0;
 
-		if (glfwGetKey(window, GLFW_KEY_B)){
-			vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
-			vec3_scale(targetPos, paddle.pt, 1);
-			targetPos[1] += 2;
+		{ //Paddle-ball keys
+			if (glfwGetKey(window, GLFW_KEY_B)){
+				vec3_scale(sphere->vel, targetPos, 0);//Clear sphere vel
+				vec3_scale(targetPos, paddle.pt, 1);
+				targetPos[1] += 2;
 
-			sphere->x = targetPos[0], sphere->y = targetPos[1], sphere->z = targetPos[2];
+				sphere->x = targetPos[0], sphere->y = targetPos[1], sphere->z = targetPos[2];
+			}
+			if (glfwGetKey(window, GLFW_KEY_N))
+				drawPaddle = 1-drawPaddle;
 		}
 
 		updatePingBall(sphere, paddle);
@@ -671,6 +703,42 @@ int main(){
 		mat4x4_translate_in_place(crateLocal, x, -y, z); //translate
 		mat4x4_rotate_Z(crateLocal, crateLocal, theta); //output, rot
 
+		{ // TEXTURED SPHERE RENDERING
+
+			earthSphere->rot[1] += 0.01;
+
+			glUseProgram(texturedSphereShader->ID);
+
+			mat4x4 earthLocal;
+			sphere_local_matrix(earthSphere, earthLocal);
+
+			{  //Send matrix transformations to shader program
+				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
+				glUniformMatrix4fv(sphereShaderMatrices[1], 1, GL_FALSE, (const GLfloat *)localIdentity);
+				glUniformMatrix4fv(sphereShaderMatrices[2], 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+				glUniformMatrix4fv(sphereShaderMatrices[3], 1, GL_FALSE, (const GLfloat *)perspective);
+			}
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, earthTexture);
+
+			glBindVertexArray(earthSphere->VAO);
+
+			// {
+			// 	int draw_i;
+			// 	for (draw_i=0; draw_i<earthSphere->lats; draw_i++)
+			// 		glDrawElements(GL_TRIANGLE_STRIP, 2*earthSphere->lons, GL_UNSIGNED_INT, (void*)(i*2*earthSphere->lons));
+			// }
+			glDrawElements(GL_TRIANGLE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
+
+			/* Wireframe
+				// //Change Radius of sphere and update matrix
+				// earthSphere->r = 5.2;
+				// sphere_local_matrix(earthSphere, earthLocal);
+				// glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
+				// glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
+			*/
+		} //Textured sphere rendering
 
 		glUseProgram(crateShader->ID);
 
@@ -811,18 +879,20 @@ int main(){
 			glDrawElements(GL_TRIANGLE_STRIP, droplets[sphere_i]->ebo_indices_c, GL_UNSIGNED_INT, 0);
 		}
 
-		vec4 darkGreen = {1, 1, 1, 1};
-		//Bind and render paddle
-		mat4x4 paddleLocal;
-		mat4x4_identity(paddleLocal);
-		mat4x4_translate_in_place(paddleLocal, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
-		mat4x4_rotate_Y(paddleLocal, paddleLocal, paddle.rt.yaw);
-		mat4x4_rotate_X(paddleLocal, paddleLocal, paddle.rt.pitch);
-		mat4x4_scale_aniso(paddleLocal, paddleLocal, paddle.r, 0.15, paddle.r);
-		glUniform4fv(sphereColor, 1, darkGreen);
-		glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
-		glBindVertexArray(paddle.vao);
-		glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
+		if (drawPaddle){
+			vec4 darkGreen = {1, 1, 1, 1};
+			//Bind and render paddle
+			mat4x4 paddleLocal;
+			mat4x4_identity(paddleLocal);
+			mat4x4_translate_in_place(paddleLocal, paddle.pt[0], paddle.pt[1], paddle.pt[2]);
+			mat4x4_rotate_Y(paddleLocal, paddleLocal, paddle.rt.yaw);
+			mat4x4_rotate_X(paddleLocal, paddleLocal, paddle.rt.pitch);
+			mat4x4_scale_aniso(paddleLocal, paddleLocal, paddle.r, 0.15, paddle.r);
+			glUniform4fv(sphereColor, 1, darkGreen);
+			glUniformMatrix4fv(sphereLocalLoc, 1, GL_FALSE, (const GLfloat *)paddleLocal);
+			glBindVertexArray(paddle.vao);
+			glDrawElements(GL_TRIANGLE_STRIP, paddle.ebo_c, GL_UNSIGNED_INT, 0);
+		}
 
 		//Unbind VAO
 		glBindVertexArray(0);

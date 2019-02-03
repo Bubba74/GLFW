@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <sphere.h>
 
 Sphere *sphere_create(double x, double y, double z, double radius) {
@@ -8,6 +9,11 @@ Sphere *sphere_create(double x, double y, double z, double radius) {
   sphere->z = z;
 
   sphere->r = radius;
+
+  sphere->vel[0] = 0;  sphere->vel[1] = 0;  sphere->vel[2] = 0;
+  sphere->rot[0] = 0;  sphere->rot[1] = 0;  sphere->rot[2] = 0;
+
+  sphere->textured = 0; //Default: not textured
 
   return sphere;
 }//sphere_create
@@ -24,7 +30,6 @@ float sphere__norm (float value){
   if (value > 1) return 1;
   return value;
 }//sphere__norm
-
 void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
   //Load an xyz point into the vertex array based off of lon/lat coordinates
   lat = M_PI * (lat / 180.0f);
@@ -38,6 +43,25 @@ void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
   obj->vertices[(*index)++] = x;
   obj->vertices[(*index)++] = y;
   obj->vertices[(*index)++] = z;
+}//sphere__add_point
+
+//Add TexCoord based off of (DEGREES) lat and lon angles
+void sphere__add_tex_deg(Sphere *obj, int *index, double lat, double lon) {
+  //UV Coordinates go from Bottom-Left at (0,0) to Top-Right at (1,1)
+  /*
+    (0,1)--(1,1)
+      |      |
+      |      |
+    (0,0)--(1,0)
+  */
+
+  //Convert (lat, lon) to (x,y) coordinates of a GLFW texture
+  float x = lon / 360.0f;
+  float y = (-lat+90.0f) / 180.0f;
+
+  obj->texVertices[(*index)++] = x;
+  obj->texVertices[(*index)++] = y;
+
 }//sphere__add_point
 
 void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count) {
@@ -55,60 +79,95 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
     return;
   }
 
+  //TODO: Change circular wrap of point cloud to wrapped rectangle with distinct
+     //  (non-crossing boundary) edges
+
   //Store paramteres for future reference
   obj->lats = lat_count;
   obj->lons = lon_count;
 
   //Initialize loop variables
-  float latDelta = 360.0 / (2*lat_count);
+  float latDelta = 360.0 / (2*lat_count); //starts at -90->0->90
   float latStart = -90.0 + latDelta/2.0;
-  float latEnd   =  90.0 - latDelta/2.0;
-  float lat;   //Latitude circles from -90deg N to 90deg S (inclusive)
-                                          //starts at -90->0->90
 
   float lonDelta = 360.0/(lon_count-1); //Same concept as for deltaLat
-  float lon = 0;    //For each latitude, longitude goes from [0, 360]
+  float lonStart =   0.0 + lonDelta/2.0;
 
   // Allocate memory: # of points around sphere (lon_count) for every row(lat_count);
     // as each vertex is xyz, the float array counts 3x the above.
-  obj->vertexCount = lon_count * lat_count;
+  obj->vertexCount = (lon_count+1) * lat_count;
   obj->vertices = malloc(3*obj->vertexCount*sizeof(float));
 
-  int ind = 0; //Vertex Index
-  for (lat = latStart; lat<=latEnd; lat+=latDelta){
-    for (lon=0; lon<=360.0; lon+=lonDelta)
-    {
-      sphere__add_point_deg(obj, &ind, lat, lon);
+  if (obj->textured)
+    obj->texVertices = malloc (2*obj->vertexCount*sizeof(float));
+
+  int vertIndex = 0; //Vertex Index
+  int texIndex = 0; //TexCoord index
+
+  double latDeg, lonDeg;
+  int lat_i, lon_i;
+  for (lat_i=0; lat_i < obj->lats; lat_i++){
+    // The extra lon_i accounts for wrapping textures properly around the 360deg boundary
+      // This extra point has the same coordinate as the first, but a different TexCoord
+    for (lon_i=0; lon_i <= obj->lons; lon_i++){
+      latDeg = latStart + lat_i*latDelta;
+      lonDeg = lonStart + lon_i*lonDelta;
+      sphere__add_point_deg(obj, &vertIndex, latDeg, lonDeg);
+      if (obj->textured)
+        sphere__add_tex_deg(obj, &texIndex, latDeg, lonDeg);
     }
   }
+  //     Old Loop
+  // for (lat = latStart; lat<=latEnd; lat+=latDelta){
+  //   for (lon=lonDelta/2; lon<=360.0+lonDel; lon+=lonDelta)
+  //   {
+  //     sphere__add_point_deg(obj, &ind, lat, lon);
+  //   }
+  //   //Add an extra point on the boundary of 0deg and 360deg
+  //   sphere__add_point_deg(obj, &ind, lat, lon);
+  // }
 
 }//sphere_create_model
 
 void sphere__add_index(int *indices, int *index, int lons, int lat_i, int lon_i){
   //The absolute index (in obj->vertices) is the current index around the
     // horizontal (lon_i) + the # of points per row (lons) * the row index (lat_i)
-  int vertex_i = lons*lat_i + lon_i;
+  int vertex_i = (lons+1)*lat_i + lon_i;
   indices[(*index)++] = vertex_i;
 }//sphere__add_index
 
 int *sphere_ebo_indices(int *indicesCount, unsigned int lat_count, unsigned int lon_count){
 
   //Allocate memory for indices
-  (*indicesCount) = 2 * lat_count * lon_count;
+  *indicesCount = (lat_count-1) * 2*lon_count;
   int *indices = malloc( *indicesCount * sizeof(int));
 
   int index = 0;
 
+  int goRight = 1;
   int lat_i, lon_i;
-  for (lat_i=0; lat_i<lat_count; lat_i++){
+  for (lat_i=0; lat_i<lat_count-1; lat_i++){
     for (lon_i=0; lon_i<lon_count; lon_i++){
-      sphere__add_index(indices, &index, lon_count, lat_i, lon_i);
-      sphere__add_index(indices, &index, lon_count, (lat_i+1)%lat_count, lon_i);
+      if (goRight){
+        sphere__add_index(indices, &index, lon_count, lat_i,   lon_i);
+        sphere__add_index(indices, &index, lon_count, lat_i+1, lon_i);
+      } else {
+        sphere__add_index(indices, &index, lon_count, lat_i,   lon_count-lon_i-1);
+        sphere__add_index(indices, &index, lon_count, lat_i+1, lon_count-lon_i-1);
+      }
     }
+    //Alternate between going right and going right between layers
+    goRight = 1-goRight;
   }
 
   return indices;
 }//sphere_ebo_indices
+
+//Enable texturing of the sphere through an equirectangular texture.
+void sphere_texture(Sphere *obj) {
+  obj->textured = 1;
+  return;
+} // sphere_texture
 
 void sphere_attach_vao(Sphere *obj){
 
@@ -120,16 +179,30 @@ void sphere_attach_vao(Sphere *obj){
   unsigned int VBO;
   glGenBuffers(1, &VBO);
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, 3*obj->vertexCount*sizeof(float), obj->vertices, GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
-  glEnableVertexAttribArray(0);
 
-  int *indices = sphere_ebo_indices(&obj->ebo_indices_c, obj->lats, obj->lons);
+  int vertFloats = obj->vertexCount*sizeof(float);
+  if (obj->textured){
+    glBufferData(GL_ARRAY_BUFFER, 5*vertFloats, NULL, GL_STATIC_DRAW);
+
+    glBufferSubData(GL_ARRAY_BUFFER, 0, 3*vertFloats, obj->vertices);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
+    glEnableVertexAttribArray(0);
+
+    glBufferSubData(GL_ARRAY_BUFFER, 3*vertFloats, 2*vertFloats, obj->texVertices);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*) (3*vertFloats));
+    glEnableVertexAttribArray(1);
+  } else {
+    glBufferData(GL_ARRAY_BUFFER, 3*vertFloats, obj->vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
+    glEnableVertexAttribArray(0);
+  }
+
+  obj->indices = sphere_ebo_indices(&obj->ebo_indices_c, obj->lats, obj->lons);
 
   unsigned int EBO;
   glGenBuffers(1, &EBO);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj->ebo_indices_c*sizeof(int), indices, GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj->ebo_indices_c*sizeof(int), obj->indices, GL_STATIC_DRAW);
 
   //Unbind sphere VAO
   glBindVertexArray(0);
@@ -138,6 +211,11 @@ void sphere_attach_vao(Sphere *obj){
 void sphere_local_matrix(Sphere *obj, mat4x4 local){
   mat4x4_identity(local);
   float r = obj->r;
+
+  mat4x4_rotate_X(local, local, obj->rot[0]);
+  mat4x4_rotate_Y(local, local, obj->rot[1]);
+  mat4x4_rotate_Z(local, local, obj->rot[2]);
+
   mat4x4_translate_in_place(local, obj->x, obj->y, obj->z);
   mat4x4_scale_aniso(local, local, r, r, r);
 }//sphere_get_local_matrix
