@@ -8,12 +8,16 @@ Sphere *sphere_create(double x, double y, double z, double radius) {
   sphere->y = y;
   sphere->z = z;
 
+  sphere->pos[0] = x; sphere->pos[1] = y; sphere->pos[2] = z;
+
+
   sphere->r = radius;
 
   sphere->vel[0] = 0;  sphere->vel[1] = 0;  sphere->vel[2] = 0;
   sphere->rot[0] = 0;  sphere->rot[1] = 0;  sphere->rot[2] = 0;
 
   sphere->textured = 0; //Default: not textured
+  sphere->flipped = 0;
 
   return sphere;
 }//sphere_create
@@ -114,7 +118,7 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
       lonDeg = lonStart + lon_i*lonDelta;
       sphere__add_point_deg(obj, &vertIndex, latDeg, lonDeg);
       if (obj->textured)
-        sphere__add_tex_deg(obj, &texIndex, latDeg, lonDeg);
+        sphere__add_tex_deg(obj, &texIndex, latDeg, obj->flipped?-lonDeg:lonDeg);
     }
   }
   //     Old Loop
@@ -180,7 +184,7 @@ void sphere_attach_vao(Sphere *obj){
   glGenBuffers(1, &VBO);
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-  int vertFloats = obj->vertexCount*sizeof(float);
+  long vertFloats = obj->vertexCount*sizeof(float);
   if (obj->textured){
     glBufferData(GL_ARRAY_BUFFER, 5*vertFloats, NULL, GL_STATIC_DRAW);
 

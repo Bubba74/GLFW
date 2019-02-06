@@ -12,6 +12,7 @@ typedef struct camera_struct {
 
   vec3 pos;
   vec3 dir;
+  vec3 up;
 
   double pitch, roll, yaw;
 
@@ -24,6 +25,7 @@ void cameraUp(Camera *cam, double verticalMovement);
 
 void cameraRotateAroundTarget(Camera *cam, double deltaMouseX, double deltaMouseY, int dist_to_target);
 void cameraRotateFromPos(Camera *cam, double deltaMouseX, double deltaMouseY);
+void cameraSetUp(Camera *cam, vec3 newUp);
 
 void cameraRotate3d(Camera *cam, double pitch, double roll, double yaw);
 void cameraPosition3d(Camera *cam, double newCameraX, double newCameraY, double newCameraZ);

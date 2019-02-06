@@ -4,17 +4,20 @@
 
 int cInstance = 0;
 void cameraForward(Camera *cam, double speed){
-  vec3 direction;
-  vec3_scale(direction, cam->dir, speed);
+  //TODO Change this so the movement is perpendicular to the UP vector
+  //(you can't simply walk into space)
+  vec3 direction, right;
+  vec3_mul_cross(right, cam->dir, cam->up);
+  vec3_mul_cross(direction, cam->up, right);
+  vec3_scale(direction, direction, speed);
   vec3_add(cam->pos, cam->pos, direction);
 
   cam->updateViewMatrix = 1;
 }//cameraForward
 
 void cameraStrafe(Camera *cam, double speed){
-  vec3 up = {0, 1, 0};
   vec3 direction;
-  vec3_mul_cross(direction, cam->dir, up);
+  vec3_mul_cross(direction, cam->dir, cam->up);
   vec3_norm(direction, direction);
   vec3_scale(direction, direction, speed);
   vec3_add(cam->pos, cam->pos, direction);
@@ -23,8 +26,9 @@ void cameraStrafe(Camera *cam, double speed){
 }//cameraStrafe
 
 void cameraUp(Camera *cam, double speed){
-  vec3 direction = {0, -1, 0};
-  vec3_scale(direction, direction, -speed);
+  vec3 direction;
+  vec3 up;
+  vec3_scale(direction, cam->up, speed);
   vec3_add(cam->pos, cam->pos, direction);
 
   cam->updateViewMatrix = 1;
@@ -82,6 +86,11 @@ void cameraRotateAroundTarget(Camera *cam, double dmx, double dmy, int dist_to_t
   cameraUpdateDirectionAroundTarget(cam, dist_to_target);
 }//cameraRotateByMouse
 
+void cameraSetUp(Camera *cam, vec3 newUp){
+  cam->up[0] = newUp[0];
+  cam->up[1] = newUp[1];
+  cam->up[2] = newUp[2];
+}//cameraSetUp
 
 
 
@@ -96,7 +105,6 @@ void cameraRotate3d(Camera *cam, double pitch, double roll, double yaw){
 void cameraGenerateViewMatrix(Camera *cam){
   if (!cam->updateViewMatrix) return;
   // mat4x4_identity(cam->viewMatrix);
-  vec3 up			= {0, 1, 0};
 
   //Make sure cam->dir vector is fresh
   // cameraUpdateDirection();
@@ -104,7 +112,7 @@ void cameraGenerateViewMatrix(Camera *cam){
   vec3 target;
   vec3_add(target, cam->pos, cam->dir);
 
-  mat4x4_look_at(cam->viewMatrix, cam->pos, target, up);
+  mat4x4_look_at(cam->viewMatrix, cam->pos, target, cam->up);
 
   cam->updateViewMatrix = 0;
 }//cameraGetViewMatrix
@@ -120,6 +128,9 @@ void cameraPosition3d(Camera *cam, double x, double y, double z){
 Camera *cameraGetNew(){
   //Allocate memory for new object
   Camera *newInstance = malloc(sizeof(Camera));
+  cameraPosition3d(newInstance, 0, 0, 0);
+  vec3 up = {0,1,0};
+  cameraSetUp(newInstance, up);
 
   return newInstance;
 }//cameraGetNew

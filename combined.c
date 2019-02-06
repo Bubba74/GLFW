@@ -12,6 +12,7 @@
 #include <math.h>
 
 #include "Shader.h"
+#include <grabImage.h>
 
 // int WIN_X = 1000;
 // int WIN_Y = 200;
@@ -390,7 +391,7 @@ int main(){
 
 
 	//Create and render a sphere
-	int lats = 50, lons = 50;
+	int lats = 10, lons = 10;
 
 	Sphere *sphere = sphere_create(0, 0, 0, 0.2);
 	sphere_rgba(sphere, 1, 0, 0, 1);
@@ -461,7 +462,7 @@ int main(){
 	double camx, camy;
 
 	Camera *cam = cameraGetNew();
-	cameraPosition3d(cam, 0, 1, 2);
+	cameraPosition3d(cam, 0, -24, 0);
 	cameraRotate3d(cam, -0.2, 0, -1.5);
 	int rotateAroundPaddle = 0;
 	int rotateAroundPaddleLast = 0;
@@ -542,7 +543,10 @@ int main(){
 	}
 
 	// TEXTURED SPHERE SHADER
-	unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	// unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	VideoCapture *video;
+	unsigned int earthTexture = createVideoTexture("textures/RollerCoaster360.mp4", &video);
+	// earthTexture = loadTexture("textures/earth.jpg");
 	Sphere* earthSphere;
 	Shader *texturedSphereShader;
 	int sphereShaderMatrices[4];
@@ -550,8 +554,9 @@ int main(){
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
 			// for equirectangular image
-		earthSphere = sphere_create(0,20,0,10);
-		sphere_texture(earthSphere);
+		earthSphere = sphere_create(0,-25,0,20);
+		earthSphere->textured = 1;
+		earthSphere->flipped = 1;
 		sphere_init_model(earthSphere,200,200);
 		sphere_attach_vao(earthSphere);
 
@@ -572,6 +577,7 @@ int main(){
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
+		updateVideoTexture(earthTexture, video);
 		//Enable transparency and cam-z calculations
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -579,7 +585,7 @@ int main(){
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Update water graphics
-		int asd = 0;
+		int asd = 5;
 		for (asd=0; asd<5; asd++)
 			 updateDroplets(droplets, droplets_c, cam->pos);
 
@@ -677,6 +683,13 @@ int main(){
 		}
 
 		//------------- Calculate Matrices --------------------- //
+		//Update normal of cameral to be perpendicular to the earth
+		vec3 cam_n;
+		vec3_sub(cam_n, cam->pos, earthSphere->pos);
+		vec3_norm(cam_n, cam_n);
+		// cam_n[0] = 1; cam_n[1] = 0; cam_n[2] = 0;
+		cameraSetUp(cam, cam_n);
+
 		if (rotateAroundPaddle)
 			cameraRotateAroundTarget(cam, camx-cam_prevx, camy-cam_prevy, dist_to_paddle);
 		else
@@ -729,7 +742,7 @@ int main(){
 			// /* Wireframe
 				//Change Radius of sphere and update matrix
 				float temp = earthSphere->r;
-				earthSphere->r *= 0.999;
+				earthSphere->r *= 1.001;
 				glBindTexture(GL_TEXTURE_2D, 0);
 				sphere_local_matrix(earthSphere, earthLocal);
 				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);

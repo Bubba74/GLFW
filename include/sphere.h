@@ -10,6 +10,7 @@
 
 typedef struct {
   double x, y, z, r;
+  vec3 pos;
   vec3 vel;
   vec3 rot;
 
@@ -24,7 +25,7 @@ typedef struct {
   int *indices;
   unsigned int VAO;
 
-  unsigned int textured;
+  unsigned int textured, flipped;
   float *texVertices;
 
 } Sphere;
