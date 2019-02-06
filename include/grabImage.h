@@ -8,6 +8,13 @@ struct Mat;
 typedef struct VideoCapture VideoCapture;
 typedef struct Mat Mat;
 
+struct MatVideoStruct {
+  VideoCapture *video;
+  Mat *mat;
+};
+
+typedef struct MatVideoStruct MatVideoStruct;
+
 VideoCapture *openVideo(char file[]);   //Open video (.avi/.mp4/etc.) files
 void closeVideo(VideoCapture *video);   //Release resources for VideoCapture
 

@@ -23,7 +23,7 @@ void updateTexture(unsigned int texID, int width, int height, int nrChannels, un
 
   GLint inputFormat = GL_BGR;
   if (nrChannels == 4){
-    inputFormat = GL_RGBA;
+    inputFormat = GL_RGBA8;
   }
   //               texture     mipmap, xoff, yoff, W, H, format,     type,             pixels
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, inputFormat, GL_UNSIGNED_BYTE, data);
@@ -35,7 +35,7 @@ void storeTexture(unsigned int texID, int width, int height, int nrChannels, uns
 
   GLint inputFormat = GL_BGR;
   if (nrChannels == 4){
-    inputFormat = GL_RGBA;
+    inputFormat = GL_RGBA8;
   }
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, data);
@@ -64,6 +64,7 @@ unsigned int loadTexture(char *texturePath){
 #define VIDEO_ENABLED
 #ifdef VIDEO_ENABLED
 
+#include <time.h>
 #include <grabImage.h>
 
 unsigned int createVideoTexture(char *videoPath, VideoCapture **video){
@@ -79,13 +80,45 @@ unsigned int createVideoTexture(char *videoPath, VideoCapture **video){
   return texture;
 } //createVideoTexture
 
+double frameTime = 0, updateTime = 0;
+void printVideo(){
+  printf("Frame: %.5f\tUpdate: %.5f\n", frameTime, updateTime);
+}//printVideo
+
+void updateTextureWithMat(unsigned int texID, Mat** frame) {
+  struct timespec tstart={0,0}, tend={0,0};
+  clock_gettime(CLOCK_MONOTONIC, &tstart);
+  updateTexture(texID, matCols(*frame), matRows(*frame), matChannels(*frame), matData(*frame));
+  clock_gettime(CLOCK_MONOTONIC, &tend);
+
+  updateTime += ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+  ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+
+  releaseMat(*frame);
+  *frame = 0;
+}//updateTextureWithMat
+
+void loadVideoTexture(Mat **mat, VideoCapture *video) {
+  struct timespec tstart={0,0}, tend={0,0};
+  clock_gettime(CLOCK_MONOTONIC, &tstart);
+  *mat = grabFrame(video);
+  clock_gettime(CLOCK_MONOTONIC, &tend);
+
+  frameTime += ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+  ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+}//loadVideoTexture
+
+void loadVideoTextureStruct(MatVideoStruct *obj) {
+  loadVideoTexture(&obj->mat, obj->video);
+}
+
 void updateVideoTexture(unsigned int texID, VideoCapture *video){
-
-  Mat *frame = grabFrame(video);
-
-  updateTexture(texID, matCols(frame), matRows(frame), matChannels(frame), matData(frame));
-  releaseMat(frame);
-
+  Mat *frame;
+  //(Eventually on a separate thread, ) grab a new frame from the video
+  //  and load it into the mat's ->data member
+  loadVideoTexture(&frame, video);
+  //On the main (graphics) thread, transfer the frame from CPU memory to GPU
+  updateTextureWithMat(texID, &frame);
 }//updateVideoTexture
 
 

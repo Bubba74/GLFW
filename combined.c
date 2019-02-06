@@ -29,6 +29,7 @@ double minf(double a, double b){
 }//minf
 
 unsigned int loadTexture(char *);
+void loadVideoTexture(Mat **, VideoCapture*);
 
 void setViewPort();
 void loadShaders(unsigned int, const char *, const char *);
@@ -544,8 +545,9 @@ int main(){
 
 	// TEXTURED SPHERE SHADER
 	// unsigned int earthTexture = loadTexture("textures/earth.jpg");
-	VideoCapture *video;
-	unsigned int earthTexture = createVideoTexture("textures/RollerCoaster360.mp4", &video);
+	MatVideoStruct box;
+	unsigned int earthTexture = createVideoTexture("textures/RollerCoaster360.mp4", &box.video);
+	loadVideoTextureStruct(&box);
 	// earthTexture = loadTexture("textures/earth.jpg");
 	Sphere* earthSphere;
 	Shader *texturedSphereShader;
@@ -577,7 +579,13 @@ int main(){
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
-		updateVideoTexture(earthTexture, video);
+		// updateVideoTexture(earthTexture, video);
+		if (box.mat){
+			updateTextureWithMat(earthTexture, &box.mat);
+			pthread_t thread_id;
+			pthread_create(&thread_id, NULL, loadVideoTextureStruct, (void*)&box);
+		}
+
 		//Enable transparency and cam-z calculations
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -960,7 +968,7 @@ int main(){
 		cam_prevy = camy;
 
 	}
-
+	printVideo();
 	glfwTerminate();
 	return 0;
 
