@@ -543,15 +543,20 @@ int main(){
 
 	}
 
-	// TEXTURED SPHERE SHADER
-	// unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	// Video Texture //
 	MatVideoStruct box;
-	unsigned int earthTexture = createVideoTexture("textures/RollerCoaster360.mp4", &box.video);
+	unsigned int earthTexture = createVideoTexture("textures/drone.mp4", &box.video);
 	loadVideoTextureStruct(&box);
+	// Video Texture //
+	// unsigned int earthTexture = loadTexture("textures/earth.jpg");
 	// earthTexture = loadTexture("textures/earth.jpg");
 	Sphere* earthSphere;
 	Shader *texturedSphereShader;
 	int sphereShaderMatrices[4];
+
+	float sphereProgressPercent = 1;
+	int sphereAnimate = 0;
+	int sphereAnimationDir = 1;
 
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
@@ -559,7 +564,7 @@ int main(){
 		earthSphere = sphere_create(0,-25,0,20);
 		earthSphere->textured = 1;
 		earthSphere->flipped = 1;
-		sphere_init_model(earthSphere,200,200);
+		sphere_init_model(earthSphere,20,20);
 		sphere_attach_vao(earthSphere);
 
 		//Create shader program
@@ -584,6 +589,7 @@ int main(){
 			updateTextureWithMat(earthTexture, &box.mat);
 			pthread_t thread_id;
 			pthread_create(&thread_id, NULL, loadVideoTextureStruct, (void*)&box);
+			// loadVideoTextureStruct(&box);
 		}
 
 		//Enable transparency and cam-z calculations
@@ -676,6 +682,24 @@ int main(){
 				if (keySpace) cameraUp(cam, speedRaise);
 				else if (keyLeftShift) cameraUp(cam, -speedRaise);
 
+			//Animate the earth between equirectangular and spherical
+			float animationStep = 0.01;
+			//Toggle animation by U
+			if (glfwGetKey(window, GLFW_KEY_U))
+				sphereAnimate = 1 - sphereAnimate;
+			if (sphereAnimate) {
+				sphereProgressPercent += sphereAnimationDir * animationStep;
+				if (sphereProgressPercent > 1){
+					sphereProgressPercent = 1;
+					sphereAnimationDir = -sphereAnimationDir;
+				} else if (sphereProgressPercent < 0) {
+					sphereProgressPercent = 0;
+					sphereAnimationDir = -sphereAnimationDir;
+				}
+				sphere_update_model(earthSphere, sphereProgressPercent);
+				printf("Progress: %.2f\n", sphereProgressPercent);
+			}
+
 			//Toggle rotateAroundPaddle
 			int paddleKey = GLFW_KEY_M;
 			if (glfwGetKey(window, paddleKey)){
@@ -696,7 +720,7 @@ int main(){
 		vec3_sub(cam_n, cam->pos, earthSphere->pos);
 		vec3_norm(cam_n, cam_n);
 		// cam_n[0] = 1; cam_n[1] = 0; cam_n[2] = 0;
-		cameraSetUp(cam, cam_n);
+		// cameraSetUp(cam, cam_n);
 
 		if (rotateAroundPaddle)
 			cameraRotateAroundTarget(cam, camx-cam_prevx, camy-cam_prevy, dist_to_paddle);

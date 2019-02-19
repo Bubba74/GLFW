@@ -23,7 +23,7 @@ typedef struct {
 
   unsigned int ebo_indices_c;
   int *indices;
-  unsigned int VAO;
+  unsigned int VAO, VBO;
 
   unsigned int textured, flipped;
   float *texVertices;
@@ -36,6 +36,8 @@ Sphere *sphere_create(double x, double y, double z, double radius);
 void sphere_rgba(Sphere *obj, float r, float g, float b, float a);
 //Initialize Sphere->vertices with the point cloud of the sphere, with given accuracy
 void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_count);
+//Update the spherical texture to transform between 0 (an equirectangular projection) and 1 (a sphere)
+void sphere_update_model(Sphere *obj, float progressPercent);
 //Used by sphere_attach_vao to create the integer indices of the coordinates to draw triangles
 int *sphere_ebo_indices(int *indicesCount, unsigned int lat_count, unsigned int lon_count);
 //Enable texturing of the sphere through an equirectangular texture.

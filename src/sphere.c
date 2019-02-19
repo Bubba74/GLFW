@@ -1,6 +1,7 @@
 
 #include <assert.h>
 #include <sphere.h>
+#include <linmath.h>
 
 Sphere *sphere_create(double x, double y, double z, double radius) {
   Sphere *sphere = malloc(sizeof(Sphere));
@@ -34,19 +35,25 @@ float sphere__norm (float value){
   if (value > 1) return 1;
   return value;
 }//sphere__norm
-void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon) {
+
+void sphere__add_point_deg(Sphere *obj, int *index, double lat, double lon, double radius) {
   //Load an xyz point into the vertex array based off of lon/lat coordinates
   lat = M_PI * (lat / 180.0f);
   lon = M_PI * (lon / 180.0f);
-  float x = sinf(lon)*cosf(lat);
-  float y = sinf(lat);
-  float z = cosf(lon)*cosf(lat);
-  x = sphere__norm(x);
-  y = sphere__norm(y);
-  z = sphere__norm(z);
-  obj->vertices[(*index)++] = x;
-  obj->vertices[(*index)++] = y;
-  obj->vertices[(*index)++] = z;
+  //Adjust for radius != 1
+  lat = lat/radius;
+  lon = lon/radius;
+  //Find center of sphere
+  vec3 center = {0,0,-radius+1};
+  float x = radius*sinf(lon)*cosf(lat);
+  float y = radius*sinf(lat);
+  float z = radius*cosf(lon)*cosf(lat);
+  // x = sphere__norm(x);
+  // y = sphere__norm(y);
+  // z = sphere__norm(z);
+  obj->vertices[(*index)++] = x+center[0];
+  obj->vertices[(*index)++] = y+center[1];
+  obj->vertices[(*index)++] = z+center[2];
 }//sphere__add_point
 
 //Add TexCoord based off of (DEGREES) lat and lon angles
@@ -83,23 +90,20 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
     return;
   }
 
-  //TODO: Change circular wrap of point cloud to wrapped rectangle with distinct
-     //  (non-crossing boundary) edges
-
   //Store paramteres for future reference
   obj->lats = lat_count;
   obj->lons = lon_count;
 
   //Initialize loop variables
-  float latDelta = 360.0 / (2*lat_count); //starts at -90->0->90
+  float latDelta = 180.0 / obj->lats; //starts at -90->0->90
   float latStart = -90.0 + latDelta/2.0;
 
-  float lonDelta = 360.0/(lon_count-1); //Same concept as for deltaLat
+  float lonDelta = 360.0/(obj->lons-1); //Same concept as for deltaLat
   float lonStart =   0.0 + lonDelta/2.0;
 
   // Allocate memory: # of points around sphere (lon_count) for every row(lat_count);
     // as each vertex is xyz, the float array counts 3x the above.
-  obj->vertexCount = (lon_count+1) * lat_count;
+  obj->vertexCount = (obj->lons+1) * obj->lats;
   obj->vertices = malloc(3*obj->vertexCount*sizeof(float));
 
   if (obj->textured)
@@ -116,20 +120,65 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
     for (lon_i=0; lon_i <= obj->lons; lon_i++){
       latDeg = latStart + lat_i*latDelta;
       lonDeg = lonStart + lon_i*lonDelta;
-      sphere__add_point_deg(obj, &vertIndex, latDeg, lonDeg);
+      sphere__add_point_deg(obj, &vertIndex, latDeg, lonDeg, 1.0);
       if (obj->textured)
         sphere__add_tex_deg(obj, &texIndex, latDeg, obj->flipped?-lonDeg:lonDeg);
     }
   }
-  //     Old Loop
-  // for (lat = latStart; lat<=latEnd; lat+=latDelta){
-  //   for (lon=lonDelta/2; lon<=360.0+lonDel; lon+=lonDelta)
-  //   {
-  //     sphere__add_point_deg(obj, &ind, lat, lon);
-  //   }
-  //   //Add an extra point on the boundary of 0deg and 360deg
-  //   sphere__add_point_deg(obj, &ind, lat, lon);
-  // }
+}//sphere_create_model
+
+void sphere_update_model(Sphere *obj, float progressPercent) {
+
+  //Check conditions
+  if (obj == NULL){
+    fprintf(stderr, "sphere_create_model: received NULL Sphere pointer\n");
+    return;
+  }
+  if (progressPercent < 0){
+    fprintf(stderr, "sphere_update_model: progressPercent cannot be less than 0\n");
+    progressPercent = 0;
+
+    // return;
+  }
+  if (progressPercent > 1)
+    progressPercent = 1;
+
+  //Transition smoothly between an equirectangular plane and a sphere
+  /*
+
+  t == 0: r = infinity -> sphere of radius infinity with edge at (0,0,1)
+  t == 1: r = 1 -> sphere of radius 1 with edge at (0,0,1)
+  use same formula in sphere_init_model except with a variable radius and center
+  the center should be normal to the equirectangular plane and pass through the
+  (latitude, longitude) point (0,0) which has the (x,y,z) coordinate (0,0,1)
+
+  */
+  if (progressPercent == 0)
+    progressPercent = 0.0000001;
+  float radius = 1/progressPercent;
+  //Initialize loop variables
+  float latDelta = 180.0 / obj->lats; //starts at -90->0->90
+  float latStart = -90.0 + latDelta/2.0;
+
+  float lonDelta = 360.0/(obj->lons-1); //Same concept as for deltaLat
+  float lonStart =   -180.0 + lonDelta/2.0;
+
+  int vertIndex = 0; //Vertex Index
+  double latDeg, lonDeg;
+  int lat_i, lon_i;
+  for (lat_i=0; lat_i < obj->lats; lat_i++){
+    // The extra lon_i accounts for wrapping textures properly around the 360deg boundary
+      // This extra point has the same coordinate as the first, but a different TexCoord
+    for (lon_i=0; lon_i <= obj->lons; lon_i++){
+      latDeg = latStart + lat_i*latDelta;
+      lonDeg = lonStart + lon_i*lonDelta;
+      sphere__add_point_deg(obj, &vertIndex, latDeg, lonDeg, radius);
+    }
+  }
+
+  glBindVertexArray(obj->VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, obj->VBO);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, 3*obj->vertexCount*sizeof(float), obj->vertices);
 
 }//sphere_create_model
 
@@ -182,6 +231,7 @@ void sphere_attach_vao(Sphere *obj){
   //Create/bind and buffer VBO
   unsigned int VBO;
   glGenBuffers(1, &VBO);
+  obj->VBO = VBO;
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
   long vertFloats = obj->vertexCount*sizeof(float);
