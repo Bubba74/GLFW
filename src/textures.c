@@ -21,9 +21,9 @@ void updateTexture(unsigned int texID, int width, int height, int nrChannels, un
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texID);
 
-  GLint inputFormat = GL_BGR;
+  GLint inputFormat = GL_RGB;
   if (nrChannels == 4){
-    inputFormat = GL_RGBA8;
+    inputFormat = GL_RGBA;
   }
   //               texture     mipmap, xoff, yoff, W, H, format,     type,             pixels
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, inputFormat, GL_UNSIGNED_BYTE, data);
@@ -33,9 +33,9 @@ void storeTexture(unsigned int texID, int width, int height, int nrChannels, uns
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texID);
 
-  GLint inputFormat = GL_BGR;
+  GLint inputFormat = GL_RGB;
   if (nrChannels == 4){
-    inputFormat = GL_RGBA8;
+    inputFormat = GL_RGBA;
   }
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, inputFormat, GL_UNSIGNED_BYTE, data);
@@ -68,7 +68,7 @@ unsigned int loadTexture(char *texturePath){
 #include <grabImage.h>
 
 unsigned int createVideoTexture(char *videoPath, VideoCapture **video){
-
+  printf("Loading video: %s\n", videoPath);
   *video = openVideo(videoPath);
   Mat *first = grabFrame(*video);
   printf("Frame: (%dx%dx%d)\n", matCols(first), matRows(first), matChannels(first));
@@ -82,7 +82,7 @@ unsigned int createVideoTexture(char *videoPath, VideoCapture **video){
 
 double frameTime = 0, updateTime = 0;
 void printVideo(){
-  printf("Frame: %.5f\tUpdate: %.5f\n", frameTime, updateTime);
+  printf("Loading Frame: %.5f\tTransfer to GPU: %.5f\n", frameTime, updateTime);
 }//printVideo
 
 void updateTextureWithMat(unsigned int texID, Mat** frame) {
