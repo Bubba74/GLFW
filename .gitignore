@@ -3,10 +3,4 @@ include/test.c
 textures/earth_HD.png
 
 #Random 360deg Textures
-textures/RollerCoaster360.mp4
-textures/city.jpg
-textures/mercury.jpg
-textures/sky.jpg
-textures/space.jpg
-textures/streets.jpg
-textures/drone.mp4
+textures/
