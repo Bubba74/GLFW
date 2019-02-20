@@ -552,6 +552,7 @@ int main(){
 	loadVideoTextureStruct(&box);
 	#else
 	unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	unsigned int earthNightTexture = loadTexture("textures/earth_night.jpg");
 	#endif
 	Sphere* earthSphere;
 	Shader *texturedSphereShader;
@@ -563,7 +564,7 @@ int main(){
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
 			// for equirectangular image
-		earthSphere = sphere_create(0,-35,0,20);
+		earthSphere = sphere_create(0,-35,0,5);
 		earthSphere->textured = 1;
 		#ifdef VIDEO
 		earthSphere->flipped = 1;
@@ -582,6 +583,40 @@ int main(){
 	 	sphereShaderMatrices[3] = glGetUniformLocation(texturedSphereShader->ID, "perspective");
 
 		printf("Earth has %d elements to draw\n", earthSphere->ebo_indices_c);
+	}
+
+	unsigned int sunTexture = loadTexture("textures/venus.jpg");
+	Sphere* sunSphere;
+	Shader *LTSS; //litTexturedSphereShader
+	int LTSS_matrices[4];
+	int LTSS_light3f, LTSS_camera3f;
+
+	{ //Round textured sphere SUN!
+		//Initial wireframe sphere object including texture coordinates
+			// for equirectangular image
+		sunSphere = sphere_create(0,15,30,10);
+		sunSphere->textured = 1;
+
+		sphere_init_model(sunSphere,20,20);
+		sphere_attach_vao(sunSphere);
+
+		//Create shader program
+		LTSS = getShaderObject();
+		glUseProgram(LTSS->ID);
+		loadShader(LTSS, "res/litTexturedSphereShader.vs", "res/litTexturedSphereShader.fs");
+
+		LTSS_matrices[0] = glGetUniformLocation(LTSS->ID, "local");
+		LTSS_matrices[1] = glGetUniformLocation(LTSS->ID, "model");
+		LTSS_matrices[2] = glGetUniformLocation(LTSS->ID, "view");
+		LTSS_matrices[3] = glGetUniformLocation(LTSS->ID, "perspective");
+
+		LTSS_light3f  = glGetUniformLocation(LTSS->ID, "light_pos");
+		LTSS_camera3f = glGetUniformLocation(LTSS->ID, "camera_pos");
+		glUseProgram(LTSS->ID);
+		setInt(LTSS, "day", 0);
+		setInt(LTSS, "night", 1);
+
+		printf("Sun has %d elements to draw\n", sunSphere->ebo_indices_c);
 	}
 
 	//wstart
@@ -755,24 +790,29 @@ int main(){
 		mat4x4_translate_in_place(crateLocal, x, -y, z); //translate
 		mat4x4_rotate_Z(crateLocal, crateLocal, theta); //output, rot
 
+		// while (0)
 		{ // TEXTURED SPHERE RENDERING
 
 			earthSphere->rot[1] += 0.001;
 
-			glUseProgram(texturedSphereShader->ID);
+			glUseProgram(LTSS->ID);
 
 			mat4x4 earthLocal;
 			sphere_local_matrix(earthSphere, earthLocal);
 
 			{  //Send matrix transformations to shader program
-				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
-				glUniformMatrix4fv(sphereShaderMatrices[1], 1, GL_FALSE, (const GLfloat *)localIdentity);
-				glUniformMatrix4fv(sphereShaderMatrices[2], 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
-				glUniformMatrix4fv(sphereShaderMatrices[3], 1, GL_FALSE, (const GLfloat *)perspective);
+				glUniformMatrix4fv(LTSS_matrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
+				glUniformMatrix4fv(LTSS_matrices[1], 1, GL_FALSE, (const GLfloat *)localIdentity);
+				glUniformMatrix4fv(LTSS_matrices[2], 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+				glUniformMatrix4fv(LTSS_matrices[3], 1, GL_FALSE, (const GLfloat *)perspective);
+
+				glUniform3fv(LTSS_light3f, 1, (const GLfloat *)sunSphere->pos);
 			}
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, earthTexture);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, earthNightTexture);
 
 			glBindVertexArray(earthSphere->VAO);
 
@@ -787,6 +827,45 @@ int main(){
 				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
 				glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 				earthSphere->r = temp;
+			// */
+		} //Textured sphere rendering
+
+		{ // TEXTURED SUN RENDERING
+
+			sunSphere->pos[0] = 20*sinf(.3*glfwGetTime());
+			sunSphere->pos[1] = -35;
+			sunSphere->pos[2] = 20*cosf(.3*glfwGetTime());
+
+			glUseProgram(texturedSphereShader->ID);
+
+			mat4x4 sunLocal;
+			sphere_local_matrix(sunSphere, sunLocal);
+
+			{  //Send matrix transformations to shader program
+				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)sunLocal);
+				glUniformMatrix4fv(sphereShaderMatrices[1], 1, GL_FALSE, (const GLfloat *)localIdentity);
+				glUniformMatrix4fv(sphereShaderMatrices[2], 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
+				glUniformMatrix4fv(sphereShaderMatrices[3], 1, GL_FALSE, (const GLfloat *)perspective);
+			}
+
+			glUniform3fv(LTSS_light3f, GL_FALSE, (const GLfloat *)sunSphere->pos);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, sunTexture);
+
+			glBindVertexArray(sunSphere->VAO);
+
+			glDrawElements(GL_TRIANGLE_STRIP, sunSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
+
+			// /* Wireframe
+				//Change Radius of sphere and update matrix
+				float temp = sunSphere->r;
+				sunSphere->r *= 1.001;
+				glBindTexture(GL_TEXTURE_2D, 0);
+				sphere_local_matrix(sunSphere, sunLocal);
+				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)sunLocal);
+				glDrawElements(GL_LINE_STRIP, sunSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
+				sunSphere->r = temp;
 			// */
 		} //Textured sphere rendering
 
