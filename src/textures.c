@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STBI_FAILURE_USERMSG
 #include <stb_image.h>
 
 unsigned int genTexture(){
@@ -50,8 +51,10 @@ unsigned int loadTexture(char *texturePath){
 
   if (!data){
     printf("Error: Failed to load image data from %s\n", texturePath);
+    printf("Error Message: %s\n", stbi_failure_reason());
     return 0;
   }
+  printf("Loaded texture {%s} with resolution {%d,%d, %d}\n", texturePath, width, height, nrChannels);
 
   unsigned int texture = genTexture();
 
