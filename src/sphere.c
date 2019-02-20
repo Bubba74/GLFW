@@ -98,8 +98,8 @@ void sphere_init_model(Sphere *obj, unsigned int lat_count, unsigned int lon_cou
   float latDelta = 180.0 / obj->lats; //starts at -90->0->90
   float latStart = -90.0 + latDelta/2.0;
 
-  float lonDelta = 360.0/(obj->lons-1); //Same concept as for deltaLat
-  float lonStart =   0.0 + lonDelta/2.0;
+  float lonDelta =  360.0/(obj->lons-1); //Same concept as for deltaLat
+  float lonStart = -180.0 + lonDelta/2.0;
 
   // Allocate memory: # of points around sphere (lon_count) for every row(lat_count);
     // as each vertex is xyz, the float array counts 3x the above.
