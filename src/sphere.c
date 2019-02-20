@@ -270,6 +270,6 @@ void sphere_local_matrix(Sphere *obj, mat4x4 local){
   mat4x4_rotate_Y(local, local, obj->rot[1]);
   mat4x4_rotate_Z(local, local, obj->rot[2]);
 
-  mat4x4_translate_in_place(local, obj->x, obj->y, obj->z);
+  mat4x4_translate_in_place(local, obj->pos[0], obj->pos[1], obj->pos[2]);
   mat4x4_scale_aniso(local, local, r, r, r);
 }//sphere_get_local_matrix
