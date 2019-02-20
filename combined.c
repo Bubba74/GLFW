@@ -544,12 +544,15 @@ int main(){
 	}
 
 	// Video Texture //
-	MatVideoStruct box;
+	#define VIDEO
+	#ifdef VIDEO
+	// Video Texture //
+	MatVideoStruct box; box.mat = 0;
 	unsigned int earthTexture = createVideoTexture("textures/drone.mp4", &box.video);
 	loadVideoTextureStruct(&box);
-	// Video Texture //
-	// unsigned int earthTexture = loadTexture("textures/earth.jpg");
-	// earthTexture = loadTexture("textures/earth.jpg");
+	#else
+	unsigned int earthTexture = loadTexture("textures/earth.jpg");
+	#endif
 	Sphere* earthSphere;
 	Shader *texturedSphereShader;
 	int sphereShaderMatrices[4];
@@ -561,7 +564,7 @@ int main(){
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
 			// for equirectangular image
-		earthSphere = sphere_create(0,-25,0,20);
+		earthSphere = sphere_create(0,-35,0,20);
 		earthSphere->textured = 1;
 		earthSphere->flipped = 1;
 		sphere_init_model(earthSphere,20,20);
@@ -584,13 +587,13 @@ int main(){
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
 	while (!glfwWindowShouldClose(window)){
-		// updateVideoTexture(earthTexture, video);
+		#ifdef VIDEO
 		if (box.mat){
 			updateTextureWithMat(earthTexture, &box.mat);
 			pthread_t thread_id;
 			pthread_create(&thread_id, NULL, loadVideoTextureStruct, (void*)&box);
-			// loadVideoTextureStruct(&box);
 		}
+		#endif
 
 		//Enable transparency and cam-z calculations
 		glEnable(GL_BLEND);
@@ -684,11 +687,14 @@ int main(){
 
 			//Animate the earth between equirectangular and spherical
 			float animationStep = 0.01;
-			//Toggle animation by U
-			if (glfwGetKey(window, GLFW_KEY_U))
-				sphereAnimate = 1 - sphereAnimate;
-			if (sphereAnimate) {
-				sphereProgressPercent += sphereAnimationDir * animationStep;
+			int keyU = glfwGetKey(window, GLFW_KEY_U);
+			int keyI = glfwGetKey(window, GLFW_KEY_I);
+			if (keyU || keyI) {
+				if (keyU)
+					sphereProgressPercent += animationStep;
+				if (keyI)
+					sphereProgressPercent -= animationStep;
+
 				if (sphereProgressPercent > 1){
 					sphereProgressPercent = 1;
 					sphereAnimationDir = -sphereAnimationDir;
@@ -697,7 +703,7 @@ int main(){
 					sphereAnimationDir = -sphereAnimationDir;
 				}
 				sphere_update_model(earthSphere, sphereProgressPercent);
-				printf("Progress: %.2f\n", sphereProgressPercent);
+				// printf("Progress: %.2f\n", sphereProgressPercent);
 			}
 
 			//Toggle rotateAroundPaddle
@@ -750,7 +756,7 @@ int main(){
 
 		{ // TEXTURED SPHERE RENDERING
 
-			earthSphere->rot[1] += 0.001;
+			// earthSphere->rot[1] += 0.001;
 
 			glUseProgram(texturedSphereShader->ID);
 
@@ -1039,13 +1045,13 @@ void updateDroplets(Sphere *droplets[], int droplets_c, vec3 cam){
 			double xfuncs[] = {
 				3*M_PI/4 * pow(force,2),
 				(1/1.15)*(3*M_PI/4)*pow(force+0.1,2),
-				force
+				d
 			};
 			double E = 0.01, sigma = 4, rm = 1.6;
 			double forces[] = {
 				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.75,
 				1.5 * pow(cosf(xfuncs[funcID]),2) - 0.7 - 0.3,
-				E * ( pow(rm/xfuncs[funcID], 12) - 2*pow(rm/xfuncs[funcID],6) )
+				E * ( pow(rm/xfuncs[funcID], 12) - 20*pow(rm/xfuncs[funcID],6) )
 			};
 
 			force = forces[funcID];
