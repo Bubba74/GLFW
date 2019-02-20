@@ -544,7 +544,7 @@ int main(){
 	}
 
 	// Video Texture //
-	#define VIDEO
+	// #define VIDEO
 	#ifdef VIDEO
 	// Video Texture //
 	MatVideoStruct box; box.mat = 0;
@@ -557,16 +557,17 @@ int main(){
 	Shader *texturedSphereShader;
 	int sphereShaderMatrices[4];
 
-	float sphereProgressPercent = 1;
-	int sphereAnimate = 0;
-	int sphereAnimationDir = 1;
+	float earthWrapPercent = 1;
+	int earthWrapDir = 1;
 
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
 			// for equirectangular image
 		earthSphere = sphere_create(0,-35,0,20);
 		earthSphere->textured = 1;
+		#ifdef VIDEO
 		earthSphere->flipped = 1;
+		#endif
 		sphere_init_model(earthSphere,20,20);
 		sphere_attach_vao(earthSphere);
 
@@ -691,19 +692,19 @@ int main(){
 			int keyI = glfwGetKey(window, GLFW_KEY_I);
 			if (keyU || keyI) {
 				if (keyU)
-					sphereProgressPercent += animationStep;
+					earthWrapPercent += animationStep;
 				if (keyI)
-					sphereProgressPercent -= animationStep;
+					earthWrapPercent -= animationStep;
 
-				if (sphereProgressPercent > 1){
-					sphereProgressPercent = 1;
-					sphereAnimationDir = -sphereAnimationDir;
-				} else if (sphereProgressPercent < 0) {
-					sphereProgressPercent = 0;
-					sphereAnimationDir = -sphereAnimationDir;
+				if (earthWrapPercent > 1){
+					earthWrapPercent = 1;
+					earthWrapDir = -earthWrapDir;
+				} else if (earthWrapPercent < 0) {
+					earthWrapPercent = 0;
+					earthWrapDir = -earthWrapDir;
 				}
-				sphere_update_model(earthSphere, sphereProgressPercent);
-				// printf("Progress: %.2f\n", sphereProgressPercent);
+				sphere_update_model(earthSphere, earthWrapPercent);
+				// printf("Progress: %.2f\n", earthWrapPercent);
 			}
 
 			//Toggle rotateAroundPaddle
@@ -756,7 +757,7 @@ int main(){
 
 		{ // TEXTURED SPHERE RENDERING
 
-			// earthSphere->rot[1] += 0.001;
+			earthSphere->rot[1] += 0.001;
 
 			glUseProgram(texturedSphereShader->ID);
 
