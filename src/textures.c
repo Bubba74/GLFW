@@ -64,7 +64,7 @@ unsigned int loadTexture(char *texturePath){
   return texture;
 }
 
-#define VIDEO_ENABLED
+// #define VIDEO_ENABLED
 #ifdef VIDEO_ENABLED
 
 #include <time.h>
@@ -124,5 +124,10 @@ void updateVideoTexture(unsigned int texID, VideoCapture *video){
   updateTextureWithMat(texID, &frame);
 }//updateVideoTexture
 
+#else
+
+void printVideo () {
+  printf("Didn't compile any video code\n");
+}
 
 #endif

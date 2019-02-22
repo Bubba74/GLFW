@@ -12,7 +12,7 @@ void main(){
   vec4 dayColor = texture(day, TexCoord);
   vec4 nightColor = texture(night, TexCoord);
 
-  FragColor = brightness * dayColor + 0.5 * (1-brightness) * nightColor;
+  FragColor = brightness * dayColor + 0.4 * (1-brightness)*(1-brightness) * nightColor;
 
   FragColor.w = 1;
 }

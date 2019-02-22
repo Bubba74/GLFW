@@ -569,7 +569,7 @@ int main(){
 		#ifdef VIDEO
 		earthSphere->flipped = 1;
 		#endif
-		sphere_init_model(earthSphere,20,20);
+		sphere_init_model(earthSphere,200,200);
 		sphere_attach_vao(earthSphere);
 
 		//Create shader program
@@ -774,7 +774,12 @@ int main(){
 		mat4x4 perspective, viewTimesPerspective;
 
 		//Perspective
-		mat4x4_perspective(perspective, 5*M_PI/12, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 1000.0f);
+		float fov = 5*M_PI/12;
+		if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL))
+			fov = 2*M_PI/24;
+		if (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL))
+			fov = 2*M_PI/2.1;
+		mat4x4_perspective(perspective, fov, (float)WIN_WIDTH/(float)WIN_HEIGHT, 0.1f, 1000.0f);
 
 		//Product
 		mat4x4_mul(viewTimesPerspective, perspective, cam->viewMatrix);
@@ -832,9 +837,9 @@ int main(){
 
 		{ // TEXTURED SUN RENDERING
 
-			sunSphere->pos[0] = 20*sinf(.3*glfwGetTime());
+			sunSphere->pos[0] = 20*sinf(3*glfwGetTime());
 			sunSphere->pos[1] = -35;
-			sunSphere->pos[2] = 20*cosf(.3*glfwGetTime());
+			sunSphere->pos[2] = 20*cosf(3*glfwGetTime());
 
 			glUseProgram(texturedSphereShader->ID);
 
