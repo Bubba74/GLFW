@@ -6,6 +6,7 @@
 #include <camera.h>
 #include <sphere.h>
 #include <graph.h>
+#include <model.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -619,6 +620,8 @@ int main(){
 		printf("Sun has %d elements to draw\n", sunSphere->ebo_indices_c);
 	}
 
+	struct model *car_model = model_new("../models/cadnav.com_model/Models_E0603A039/Avent.obj");
+
 	//wstart
 	glfwSetTime(0);
 	glClearColor(0.2f, 0.3f, 0.3, 1.0);
@@ -921,6 +924,8 @@ int main(){
 			glUniformMatrix4fv(sphereViewLoc, 1, GL_FALSE, (const GLfloat *)cam->viewMatrix);
 			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 		}
+
+		model_draw(car_model);
 
 		//Get target location (where the target sphere collides with other objects)
 		vec3 start, direction;
