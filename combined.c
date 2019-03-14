@@ -620,7 +620,9 @@ int main(){
 		printf("Sun has %d elements to draw\n", sunSphere->ebo_indices_c);
 	}
 
-	struct model *car_model = model_new("../models/cadnav.com_model/Models_E0603A039/Avent.obj");
+	char lambo[] = "../models/cadnav.com_model/Models_E0603A039/Avent.obj";
+	char mclaren[] = "../models/F1 Mclaren/McLaren 2001.obj";
+	struct model *car_model = model_new(mclaren);
 
 	//wstart
 	glfwSetTime(0);
@@ -805,6 +807,8 @@ int main(){
 
 			glUseProgram(LTSS->ID);
 
+			// glUniformMatrix4fv(LTSS_matrices[0], 1, GL_FALSE, (const GLfloat *)localIdentity);
+
 			mat4x4 earthLocal;
 			sphere_local_matrix(earthSphere, earthLocal);
 
@@ -817,12 +821,13 @@ int main(){
 				glUniform3fv(LTSS_light3f, 1, (const GLfloat *)sunSphere->pos);
 			}
 
+
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, earthTexture);
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, earthNightTexture);
 
-			glBindVertexArray(earthSphere->VAO);
+			// glBindVertexArray(earthSphere->VAO);
 
 			glDrawElements(GL_TRIANGLE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
 
@@ -875,6 +880,13 @@ int main(){
 				glDrawElements(GL_LINE_STRIP, sunSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 				sunSphere->r = temp;
 			// */
+
+			mat4x4 car_local;
+			mat4x4_translate(car_local, 0, -10, 0);
+			glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)car_local);
+			model_draw(car_model);
+
+
 		} //Textured sphere rendering
 
 		glUseProgram(crateShader->ID);
@@ -925,7 +937,6 @@ int main(){
 			glUniformMatrix4fv(spherePerspectiveLoc, 1, GL_FALSE, (const GLfloat *)perspective);
 		}
 
-		model_draw(car_model);
 
 		//Get target location (where the target sphere collides with other objects)
 		vec3 start, direction;
