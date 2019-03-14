@@ -622,7 +622,8 @@ int main(){
 
 	char lambo[] = "../models/cadnav.com_model/Models_E0603A039/Avent.obj";
 	char mclaren[] = "../models/F1 Mclaren/McLaren 2001.obj";
-	struct model *car_model = model_new(mclaren);
+	char nanoman[] = "../models/Nanosuit/nanosuit.obj";
+	struct model *car_model = model_new(nanoman);
 
 	//wstart
 	glfwSetTime(0);

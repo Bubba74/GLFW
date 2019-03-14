@@ -43,7 +43,9 @@ struct model *model_new (char *path) {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)(3*size_verts));
     glEnableVertexAttribArray(0);
-    // glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(1);
+
+    printf("Mesh %d has %d vertices and %d texture coords\n", meshI, mesh->mNumVertices, mesh->mNumUVComponents[0]);
 
     int nIndices = 0;
     int faceI;
@@ -97,6 +99,7 @@ struct model *model_new (char *path) {
   model->textureNames   = malloc(model->nTextures * sizeof(char *));
   model->textureIDs   = malloc(model->nTextures * sizeof(unsigned int));
 
+  printf("\n\n      Loading %d Materials      \n", model->nMaterials);
   for (matI=0; matI < model->nMaterials; matI++) {
     struct aiMaterial *mat = model->aiScene->mMaterials[matI];
     unsigned int nTextures = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
@@ -107,10 +110,10 @@ struct model *model_new (char *path) {
     for (textI=0; textI < nTextures; textI++) {
       if (textI == 1) break; // Only load first texture
       if (AI_SUCCESS == aiGetMaterialTexture(mat, aiTextureType_DIFFUSE, textI, &path, 0,0,0, 0,0,&flags)) {
-        printf("Succeeded loading texture %d!\n", textI);
-        printf("Loading texture: %s\n", path.data);
+        // printf("Succeeded loading texture %d!\n", textI);
+        // printf("Loading texture: %s\n", path.data);
 
-        int fileStart = -1;   // Get position of last filename in directory path
+        int fileStart = 0;   // Get position of last filename in directory path
         for (c=0; path.data[c] != '\0'; c++) {
           if (path.data[c] == '/')
             fileStart = c+1;
@@ -120,7 +123,7 @@ struct model *model_new (char *path) {
             // (starting after the last forward slash)
         strcpy(modelDir+modelDirLen, path.data+fileStart);
 
-        printf("Determined texture path: %s\n", modelDir);
+        // printf("Determined texture path: %s\n", modelDir);
         int tI;
         for (tI = 0; tI < model->nTextures; tI++) {
           // If the texture path matches that stored, copy the texture id
@@ -134,12 +137,12 @@ struct model *model_new (char *path) {
         }
 
         if (tI == model->nTextures) {// Not found
-          printf("Creating new texture\n");
+          // printf("Creating new texture\n");
           model->nTextures++;
 
           // Add on another char* to texture names
           model->textureNames = realloc(model->textureNames, model->nTextures * sizeof(char*));
-          printf("Realloc'd texture names\n");
+          // printf("Realloc'd texture names\n");
 
           // Copy modelDir to texture names
           model->textureNames[model->nTextures-1] = malloc(100);
@@ -147,9 +150,9 @@ struct model *model_new (char *path) {
 
           // Add on another texture ID
           model->textureIDs   = realloc(model->textureIDs, model->nTextures * sizeof(unsigned int));
-          printf("Realloc'd texture IDs\n");
+          // printf("Realloc'd texture IDs\n");
 
-          printf("Loaded texture!\n");
+          // printf("Loaded texture!\n");
           model->materials[matI] =
           model->textureIDs[model->nTextures-1] = loadTexture(modelDir);
         }
