@@ -822,7 +822,6 @@ int main(){
 				glUniform3fv(LTSS_light3f, 1, (const GLfloat *)sunSphere->pos);
 			}
 
-
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, earthTexture);
 			glActiveTexture(GL_TEXTURE1);
@@ -842,6 +841,12 @@ int main(){
 				glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 				earthSphere->r = temp;
 			// */
+
+			mat4x4 car_local;
+			mat4x4_translate(car_local, 0, -10, 0);
+			glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)car_local);
+			model_draw(car_model);
+
 		} //Textured sphere rendering
 
 		{ // TEXTURED SUN RENDERING
@@ -881,12 +886,6 @@ int main(){
 				glDrawElements(GL_LINE_STRIP, sunSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 				sunSphere->r = temp;
 			// */
-
-			mat4x4 car_local;
-			mat4x4_translate(car_local, 0, -10, 0);
-			glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)car_local);
-			model_draw(car_model);
-
 
 		} //Textured sphere rendering
 

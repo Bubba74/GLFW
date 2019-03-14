@@ -26,7 +26,7 @@ struct model {
   struct mesh *meshes;
   int nMeshes;
 
-  unsigned int *materials;
+  unsigned int **materials;
   int nMaterials;
 
   char **textureNames;

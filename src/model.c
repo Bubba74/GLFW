@@ -6,7 +6,8 @@ unsigned int loadTexture(char *path);
 struct model *model_new (char *path) {
 
   struct model *model = malloc(sizeof(struct model));
-  model->aiScene = aiImportFile(path, aiProcessPreset_TargetRealtime_MaxQuality);
+  model->aiScene = aiImportFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
+                            // OLD: aiProcessPreset_TargetRealtime_MaxQuality
 
   if (!model->aiScene) {
     printf("Failed to load scene from file: %s\n", path);
@@ -80,9 +81,11 @@ struct model *model_new (char *path) {
   int matI;
   model->nMaterials = model->aiScene->mNumMaterials;
   // Really only store one texture id per material
-  model->materials = malloc(model->nMaterials*sizeof(unsigned int));
+  model->materials = malloc(model->nMaterials*sizeof(unsigned int *));
   for (matI = 0; matI < model->nMaterials; matI++)
-    model->materials[matI] = -1;
+    model->materials[matI] = malloc(2 * sizeof(unsigned int));
+  for (matI = 0; matI < 2*model->nMaterials; matI++)
+    model->materials[matI/2][matI%2] = -1;
 
   int pathLen = strlen(path);
   char modelDir[200];
@@ -105,61 +108,67 @@ struct model *model_new (char *path) {
     unsigned int nTextures = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
     printf("Mat %d/%d has %d textures\n", matI, model->nMaterials, nTextures);
 
-    struct aiString path;
-    int textI, flags;
-    for (textI=0; textI < nTextures; textI++) {
-      if (textI == 1) break; // Only load first texture
-      if (AI_SUCCESS == aiGetMaterialTexture(mat, aiTextureType_DIFFUSE, textI, &path, 0,0,0, 0,0,&flags)) {
-        // printf("Succeeded loading texture %d!\n", textI);
-        // printf("Loading texture: %s\n", path.data);
+    int flags;
+    int enabledPaths[2] = {0, 0};
+    struct aiString paths[2];
+    if (AI_SUCCESS == aiGetMaterialTexture(mat, aiTextureType_DIFFUSE, 0, &paths[0], 0,0,0, 0,0,&flags))
+      enabledPaths[0] = 1;
+    if (AI_SUCCESS == aiGetMaterialTexture(mat, aiTextureType_SPECULAR, 0, &paths[1], 0,0,0, 0,0,&flags))
+      enabledPaths[1] = 1;
 
-        int fileStart = 0;   // Get position of last filename in directory path
-        for (c=0; path.data[c] != '\0'; c++) {
-          if (path.data[c] == '/')
-            fileStart = c+1;
+    int textI;
+    for (textI=0; textI < 2; textI++) {
+      if (!enabledPaths[textI]) continue;
+      // if (textI == 1) break; // Only load first texture
+      // if (AI_SUCCESS == aiGetMaterialTexture(mat, aiTextureType_DIFFUSE, textI, &path, 0,0,0, 0,0,&flags)) {
+      // printf("Succeeded loading texture %d!\n", textI);
+      // printf("Loading texture: %s\n", path.data);
+
+      int fileStart = 0;   // Get position of last filename in directory path
+      for (c=0; paths[textI].data[c] != '\0'; c++) {
+        if (paths[textI].data[c] == '/')
+          fileStart = c+1;
+      }
+
+      // Copy the texture path (starting at the filename) onto the model dir,
+          // (starting after the last forward slash)
+      strcpy(modelDir+modelDirLen, paths[textI].data+fileStart);
+
+      // printf("Determined texture path: %s\n", modelDir);
+      int tI;
+      for (tI = 0; tI < model->nTextures; tI++) {
+        // If the texture path matches that stored, copy the texture id
+            // into the materials texture ID spot
+        if (!strcmp(model->textureNames[tI], paths[textI].data+fileStart)) {
+          printf("Found matching existing texture!  %s  %s\n",
+                            model->textureNames[tI], modelDir);
+          model->materials[matI][textI] = model->textureIDs[tI];
+          break;
         }
+      }
 
-        // Copy the texture path (starting at the filename) onto the model dir,
-            // (starting after the last forward slash)
-        strcpy(modelDir+modelDirLen, path.data+fileStart);
+      if (tI == model->nTextures) {// Not found
+        // printf("Creating new texture\n");
+        model->nTextures++;
 
-        // printf("Determined texture path: %s\n", modelDir);
-        int tI;
-        for (tI = 0; tI < model->nTextures; tI++) {
-          // If the texture path matches that stored, copy the texture id
-              // into the materials texture ID spot
-          if (!strcmp(model->textureNames[tI], path.data+fileStart)) {
-            printf("Found matching existing texture!  %s  %s\n",
-                              model->textureNames[tI], modelDir);
-            model->materials[matI] = model->textureIDs[tI];
-            break;
-          }
-        }
+        // Add on another char* to texture names
+        model->textureNames = realloc(model->textureNames, model->nTextures * sizeof(char*));
+        // printf("Realloc'd texture names\n");
 
-        if (tI == model->nTextures) {// Not found
-          // printf("Creating new texture\n");
-          model->nTextures++;
+        // Copy modelDir to texture names
+        model->textureNames[model->nTextures-1] = malloc(100);
+        strcpy(model->textureNames[model->nTextures-1], paths[textI].data+fileStart);
 
-          // Add on another char* to texture names
-          model->textureNames = realloc(model->textureNames, model->nTextures * sizeof(char*));
-          // printf("Realloc'd texture names\n");
+        // Add on another texture ID
+        model->textureIDs   = realloc(model->textureIDs, model->nTextures * sizeof(unsigned int));
+        // printf("Realloc'd texture IDs\n");
 
-          // Copy modelDir to texture names
-          model->textureNames[model->nTextures-1] = malloc(100);
-          strcpy(model->textureNames[model->nTextures-1], path.data+fileStart);
-
-          // Add on another texture ID
-          model->textureIDs   = realloc(model->textureIDs, model->nTextures * sizeof(unsigned int));
-          // printf("Realloc'd texture IDs\n");
-
-          // printf("Loaded texture!\n");
-          model->materials[matI] =
-          model->textureIDs[model->nTextures-1] = loadTexture(modelDir);
-        }
-      } else
-        printf("Failed to load texture %d\n", textI);
-    }
-  }
+        // printf("Loaded texture!\n");
+        model->materials[matI][textI] =
+        model->textureIDs[model->nTextures-1] = loadTexture(modelDir);
+      }// create new texture
+    } // diffuse/specular textures
+  } // materials
 
   int d; printf("----- Loaded %d textures\n", model->nTextures);
   for (d=0; d<model->nTextures; d++)
@@ -200,11 +209,17 @@ void model_draw(struct model *model) {
 } // model_draw
 
 void model_activate_material(struct model *model, int matIndex) {
-  int textureIndex = model->materials[matIndex];
-  if (textureIndex < 0) return;
+  int diffuseIndex = model->materials[matIndex][0];
+  if (diffuseIndex >= 0) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, diffuseIndex);
+  }
 
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, textureIndex);
+  int specularIndex = model->materials[matIndex][1];
+  if (specularIndex >= 0) {
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, specularIndex);
+  }
 } // model_activate_material
 
 
