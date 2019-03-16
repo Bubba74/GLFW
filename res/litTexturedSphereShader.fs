@@ -15,5 +15,5 @@ void main(){
 //  FragColor = brightness * dayColor + 0.4 * (1-brightness)*(1-brightness) * nightColor;
   FragColor = 0.5*dayColor + 0.4*brightness*nightColor;
 
-//  FragColor.w = 1;
+  FragColor.w = 1;
 }

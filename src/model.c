@@ -13,6 +13,7 @@ struct model *model_new (char *path) {
     printf("Failed to load scene from file: %s\n", path);
     return;
   }
+  printf("\n\tSuccessfully loaded model scene: %s\n", path);
 
   const struct aiMesh** meshes = model->aiScene->mMeshes;
   unsigned int nMeshes = model->aiScene->mNumMeshes;
@@ -118,8 +119,14 @@ struct model *model_new (char *path) {
   printf("\n\n      Loading %d Materials      \n", model->nMaterials);
   for (matI=0; matI < model->nMaterials; matI++) {
     struct aiMaterial *mat = model->aiScene->mMaterials[matI];
-    unsigned int nTextures = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
-    printf("Mat %d/%d has %d textures\n", matI, model->nMaterials, nTextures);
+    unsigned int nDiff = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
+    unsigned int nSpec = aiGetMaterialTextureCount(mat, aiTextureType_SPECULAR);
+    unsigned int nAmb  = aiGetMaterialTextureCount(mat, aiTextureType_AMBIENT);
+    unsigned int nEmi  = aiGetMaterialTextureCount(mat, aiTextureType_EMISSIVE);
+
+
+    printf("Mat %d/%d has %d textures: %d diffuse, %d specular, %d ambient, %d emissive\n",
+            matI, model->nMaterials, nDiff + nSpec + nAmb + nEmi, nDiff, nSpec, nAmb, nEmi);
 
     int flags;
     int enabledPaths[2] = {0, 0};
@@ -206,8 +213,8 @@ void model_draw(struct model *model) {
     model_activate_material(model, mesh->matIndex);
 
     glBindVertexArray(mesh->VAO);
-    if (!print)
-      printf("Rendering %d indices\n", mesh->nIndices);
+    // if (!print)
+    //   printf("Rendering %d indices\n", mesh->nIndices);
     glDrawElements(GL_TRIANGLES, mesh->nIndices, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
     vertices_drawn += mesh->nVertices;
