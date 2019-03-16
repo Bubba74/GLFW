@@ -38,15 +38,28 @@ struct model *model_new (char *path) {
     // Buffer 3 floats per vertex
     // Note: Hopefully, the vertices array of aiVertex3D respects the compact packing of x,y,z
     int size_verts = sizeof(float)*mesh->mNumVertices;
-    glBufferData(GL_ARRAY_BUFFER, 5*size_verts, 0, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0,            3*size_verts, mesh->mVertices);
-    glBufferSubData(GL_ARRAY_BUFFER, 3*size_verts, 2*size_verts, mesh->mTextureCoords[0]);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)(3*size_verts));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
+    if (mesh->mTextureCoords[0]) {
+      glBufferData(GL_ARRAY_BUFFER, 6*size_verts, 0, GL_STATIC_DRAW);
+      glBufferSubData(GL_ARRAY_BUFFER, 0,            3*size_verts, mesh->mVertices);
+      glBufferSubData(GL_ARRAY_BUFFER, 3*size_verts, 3*size_verts, mesh->mTextureCoords[0]);
+      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+      // int transferUV, offset = 0;
+      // for (transferUV)
+      glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)(3*size_verts));
+      glEnableVertexAttribArray(0);
+      glEnableVertexAttribArray(1);
+    } else {
+      glBufferData(GL_ARRAY_BUFFER, 3*size_verts, mesh->mVertices, GL_STATIC_DRAW);
+      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+      glEnableVertexAttribArray(0);
+    }
 
     printf("Mesh %d has %d vertices and %d texture coords\n", meshI, mesh->mNumVertices, mesh->mNumUVComponents[0]);
+
+    // int it;
+    // for (it=0; it<mesh->mNumVertices && it < 100; it++) {
+    //   printf("TexCoord: [%.2f, %.2f]\n", mesh->mTextureCoords[0][it].x, mesh->mTextureCoords[0][it].y);
+    // }
 
     int nIndices = 0;
     int faceI;
@@ -210,12 +223,16 @@ void model_draw(struct model *model) {
 
 void model_activate_material(struct model *model, int matIndex) {
   int diffuseIndex = model->materials[matIndex][0];
+  if (diffuseIndex < 0)
+    diffuseIndex = 0;
   if (diffuseIndex >= 0) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, diffuseIndex);
   }
 
   int specularIndex = model->materials[matIndex][1];
+  if (specularIndex == 0)
+    specularIndex = 0;
   if (specularIndex >= 0) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, specularIndex);

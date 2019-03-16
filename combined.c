@@ -565,7 +565,7 @@ int main(){
 	{ //Round textured sphere EARTH!
 		//Initial wireframe sphere object including texture coordinates
 			// for equirectangular image
-		earthSphere = sphere_create(0,-35,0,5);
+		earthSphere = sphere_create(0,-35,0,0.5);
 		earthSphere->textured = 1;
 		#ifdef VIDEO
 		earthSphere->flipped = 1;
@@ -843,7 +843,7 @@ int main(){
 			// */
 
 			mat4x4 car_local;
-			mat4x4_translate(car_local, 0, -10, 0);
+			mat4x4_translate(car_local, 0, -50, 0);
 			glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)car_local);
 			model_draw(car_model);
 
