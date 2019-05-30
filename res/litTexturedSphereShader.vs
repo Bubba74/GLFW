@@ -17,7 +17,7 @@ void main(){
   vec4 normal = normalize(local * vec4(pos, 0));
 
   vec4 vert_pos = local * vec4(pos, 1);
-  vec4 light_dir = normalize(  vec4(light_pos,0) - vert_pos  );
+  vec4 light_dir = normalize(  vec4(light_pos,1) - vert_pos  );
 
   float dot_product = dot(normal, light_dir);
   if (dot_product < 0)

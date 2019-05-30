@@ -598,7 +598,7 @@ int main(){
 		sunSphere = sphere_create(0,15,30,10);
 		sunSphere->textured = 1;
 
-		sphere_init_model(sunSphere,20,20);
+		sphere_init_model(sunSphere,50,50);
 		sphere_attach_vao(sunSphere);
 
 		//Create shader program
@@ -620,11 +620,13 @@ int main(){
 		printf("Sun has %d elements to draw\n", sunSphere->ebo_indices_c);
 	}
 
-	char lambo[] = "../models/cadnav.com_model/Models_E0603A039/Avent.obj";
+	char lambo[]   = "../models/cadnav.com_model/Models_E0603A039/Avent.obj";
 	char mclaren[] = "../models/F1 Mclaren/McLaren 2001.obj";
 	char nanoman[] = "../models/Nanosuit/nanosuit.obj";
-	char house[] = "../models/cadnav.com_model/Model_House2/D0503005.obj";
-	struct model *car_model = model_new(house);
+	char house[]   = "../models/cadnav.com_model/Model_House2/D0503005.obj";
+	char goat[]    = "../models/cadnav.com_model/Models_Goat/goat.obj";
+	char thanos[]	 = "../models/thanos/thanos.obj";
+	struct model *car_model = model_new(thanos);
 
 	//wstart
 	glfwSetTime(0);
@@ -844,7 +846,8 @@ int main(){
 			// */
 
 			mat4x4 car_local;
-			mat4x4_translate(car_local, 0, -50, 0);
+			// mat4x4_translate(car_local, 0, -50, 0);
+			mat4x4_scale_aniso(car_local, crateLocal, 20, 20, 20);
 			glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)car_local);
 			model_draw(car_model);
 

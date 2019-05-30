@@ -55,7 +55,8 @@ struct model *model_new (char *path) {
       glEnableVertexAttribArray(0);
     }
 
-    printf("Mesh %d has %d vertices and %d texture coords\n", meshI, mesh->mNumVertices, mesh->mNumUVComponents[0]);
+    printf("Mesh %d has %d vertices, %d texture coords, %d bones, %s normals\n",
+      meshI, mesh->mNumVertices, mesh->mNumUVComponents[0], mesh->mNumBones, (mesh->mNormals?"WITH":"W/O"));
 
     // int it;
     // for (it=0; it<mesh->mNumVertices && it < 100; it++) {
@@ -67,6 +68,7 @@ struct model *model_new (char *path) {
     for (faceI=0; faceI < mesh->mNumFaces; faceI++) {
       nIndices += mesh->mFaces[faceI].mNumIndices;
     }
+    
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*nIndices, 0, GL_STATIC_DRAW);
     meshData->nIndices = nIndices;
 
@@ -123,7 +125,6 @@ struct model *model_new (char *path) {
     unsigned int nSpec = aiGetMaterialTextureCount(mat, aiTextureType_SPECULAR);
     unsigned int nAmb  = aiGetMaterialTextureCount(mat, aiTextureType_AMBIENT);
     unsigned int nEmi  = aiGetMaterialTextureCount(mat, aiTextureType_EMISSIVE);
-
 
     printf("Mat %d/%d has %d textures: %d diffuse, %d specular, %d ambient, %d emissive\n",
             matI, model->nMaterials, nDiff + nSpec + nAmb + nEmi, nDiff, nSpec, nAmb, nEmi);
