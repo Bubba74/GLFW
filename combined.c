@@ -832,7 +832,7 @@ int main(){
 
 			// glBindVertexArray(earthSphere->VAO);
 
-			glDrawElements(GL_TRIANGLE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
+			// glDrawElements(GL_TRIANGLE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, (void*)0);
 
 			// /* Wireframe
 				//Change Radius of sphere and update matrix
@@ -841,7 +841,7 @@ int main(){
 				glBindTexture(GL_TEXTURE_2D, 0);
 				sphere_local_matrix(earthSphere, earthLocal);
 				glUniformMatrix4fv(sphereShaderMatrices[0], 1, GL_FALSE, (const GLfloat *)earthLocal);
-				glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
+				// glDrawElements(GL_LINE_STRIP, earthSphere->ebo_indices_c, GL_UNSIGNED_INT, 0);
 				earthSphere->r = temp;
 			// */
 

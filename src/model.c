@@ -40,16 +40,40 @@ struct model *model_new (char *path) {
     // Note: Hopefully, the vertices array of aiVertex3D respects the compact packing of x,y,z
     int size_verts = sizeof(float)*mesh->mNumVertices;
     if (mesh->mTextureCoords[0]) {
-      glBufferData(GL_ARRAY_BUFFER, 6*size_verts, 0, GL_STATIC_DRAW);
-      glBufferSubData(GL_ARRAY_BUFFER, 0,            3*size_verts, mesh->mVertices);
-      glBufferSubData(GL_ARRAY_BUFFER, 3*size_verts, 3*size_verts, mesh->mTextureCoords[0]);
-      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
-      // int transferUV, offset = 0;
-      // for (transferUV)
-      glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)(3*size_verts));
-      glEnableVertexAttribArray(0);
-      glEnableVertexAttribArray(1);
-    } else {
+      if (mesh->mNormals) { // Textures and normals
+        printf("Loading model data with texture coords and normals\n");
+        glBufferData(GL_ARRAY_BUFFER, 9*size_verts, 0, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0,            3*size_verts, mesh->mVertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 3*size_verts, 3*size_verts, mesh->mTextureCoords[0]);
+        glBufferSubData(GL_ARRAY_BUFFER, 6*size_verts, 3*size_verts, mesh->mNormals);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)(long)(3*size_verts));
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)(long)(6*size_verts));
+
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+
+        // int normI;
+        // struct aiVector3D *arr = mesh->mNormals;
+        // for (normI=0; normI<20; normI++)
+        //   printf("Norm %d: [%.2f,%.2f,%.2f]\n",
+        //       normI, arr[3*normI].x, arr[3*normI+1].y, arr[3*normI+2].z);
+      } else { // Textures, no normals
+        printf("Loading model data with texture coords but NO normals\n");
+        glBufferData(GL_ARRAY_BUFFER, 6*size_verts, 0, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0,            3*size_verts, mesh->mVertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 3*size_verts, 3*size_verts, mesh->mTextureCoords[0]);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)(long)(3*size_verts));
+
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+      }
+    } else { // Just vertices, no textures, no normals
+      printf("Loading model data with NO texture coords and NO normals\n");
       glBufferData(GL_ARRAY_BUFFER, 3*size_verts, mesh->mVertices, GL_STATIC_DRAW);
       glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
       glEnableVertexAttribArray(0);
@@ -68,13 +92,15 @@ struct model *model_new (char *path) {
     for (faceI=0; faceI < mesh->mNumFaces; faceI++) {
       nIndices += mesh->mFaces[faceI].mNumIndices;
     }
-    
+
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*nIndices, 0, GL_STATIC_DRAW);
     meshData->nIndices = nIndices;
 
     int offset = 0;
     for (faceI=0; faceI < mesh->mNumFaces; faceI++) {
-      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, sizeof(unsigned int) * mesh->mFaces[faceI].mNumIndices, mesh->mFaces[faceI].mIndices);
+      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset,
+        sizeof(unsigned int) * mesh->mFaces[faceI].mNumIndices,
+        mesh->mFaces[faceI].mIndices);
       offset += mesh->mFaces[faceI].mNumIndices * sizeof(unsigned int);
     }
 
